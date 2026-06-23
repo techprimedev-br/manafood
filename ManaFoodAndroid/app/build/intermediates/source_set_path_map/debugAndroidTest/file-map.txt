@@ -1,4 +1,0 @@
-com.manafood.app.test.app-androidTest-0 C:\Users\AMORIM\Desktop\INSTALADOR MANA FOOD\ManaFoodAndroid\app\build\generated\res\resValues\androidTest\debug
-com.manafood.app.test.app-mergeDebugAndroidTestResources-1 C:\Users\AMORIM\Desktop\INSTALADOR MANA FOOD\ManaFoodAndroid\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
-com.manafood.app.test.app-mergeDebugAndroidTestResources-2 C:\Users\AMORIM\Desktop\INSTALADOR MANA FOOD\ManaFoodAndroid\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
-com.manafood.app.test.app-merged_res-3 C:\Users\AMORIM\Desktop\INSTALADOR MANA FOOD\ManaFoodAndroid\app\build\intermediates\merged_res\debugAndroidTest

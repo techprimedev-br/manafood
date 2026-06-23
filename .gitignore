@@ -6,3 +6,7 @@ lanchonete/backups/
 cloudflared-windows-amd64.exe
 *.db
 .claude/
+ManaFoodAndroid/app/build/
+ManaFoodAndroid/.gradle/
+ManaFoodAndroid/.idea/
+ManaFoodAndroid/local.properties
