@@ -3002,7 +3002,7 @@ def api_publicar_cardapio(data=None):
               headers={'Authorization':f'token {token}','User-Agent':'ManaFood','Content-Type':'application/json'})
         resp = urllib.request.urlopen(req, timeout=15)
         if resp.status in (200,201):
-            return {"ok":True,"url":f"https://biomarinha00.github.io/manafood/"}
+            return {"ok":True,"url":f"https://techprimedev-br.github.io/manafood/"}
         else:
             return {"ok":False,"erro":f"GitHub retornou status {resp.status}"}
     except Exception as e:
