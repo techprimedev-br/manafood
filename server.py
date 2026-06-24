@@ -2851,12 +2851,12 @@ LOCAL_VERSION = (Path(__file__).parent / 'version.txt').read_text(encoding='utf-
 def api_check_update():
     import urllib.request
     try:
-        url = 'https://raw.githubusercontent.com/Biomarinha00/manafood/main/version.txt'
+        url = 'https://raw.githubusercontent.com/techprimedev-br/manafood/main/version.txt'
         req = urllib.request.urlopen(url, timeout=5)
         remote = req.read().decode('utf-8').strip()
         changelog = ''
         try:
-            cl_url = 'https://raw.githubusercontent.com/Biomarinha00/manafood/main/changelog.txt'
+            cl_url = 'https://raw.githubusercontent.com/techprimedev-br/manafood/main/changelog.txt'
             cl_req = urllib.request.urlopen(cl_url, timeout=5)
             changelog = cl_req.read().decode('utf-8').strip()
         except: pass
@@ -2867,7 +2867,7 @@ def api_check_update():
 
 def api_aplicar_update():
     import urllib.request
-    base_url = 'https://raw.githubusercontent.com/Biomarinha00/manafood/main/'
+    base_url = 'https://raw.githubusercontent.com/techprimedev-br/manafood/main/'
     base_dir = Path(__file__).parent
     arquivos = [
         ('server.py', base_dir / 'server.py'),
@@ -2982,7 +2982,7 @@ def api_publicar_cardapio(data=None):
         import base64 as b64mod
         content_b64 = b64mod.b64encode(html.encode('utf-8')).decode('utf-8')
         # Busca SHA atual do arquivo (necessário pra atualizar)
-        repo = 'Biomarinha00/manafood'
+        repo = 'techprimedev-br/manafood'
         file_path = 'docs/index.html'
         api_url = f'https://api.github.com/repos/{repo}/contents/{file_path}'
         sha = ''

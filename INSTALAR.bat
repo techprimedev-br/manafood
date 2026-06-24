@@ -45,7 +45,7 @@ if exist "C:\ManaFood\.git" (
     git pull >nul 2>&1
 ) else (
     echo  Baixando sistema do servidor...
-    git clone https://github.com/Biomarinha00/manafood.git "C:\ManaFood" >nul 2>&1
+    git clone https://github.com/techprimedev-br/manafood.git "C:\ManaFood" >nul 2>&1
 )
 echo  [OK] Sistema instalado em C:\ManaFood\
 
