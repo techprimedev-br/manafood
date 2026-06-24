@@ -183,6 +183,10 @@ def init_database():
         "ALTER TABLE cardapio_config ADD COLUMN instagram TEXT DEFAULT ''",
         "ALTER TABLE cardapio_config ADD COLUMN pedido_minimo REAL DEFAULT 0",
         "ALTER TABLE cardapio_config ADD COLUMN logo TEXT DEFAULT ''",
+        "CREATE TABLE IF NOT EXISTS empresa (id INTEGER PRIMARY KEY, razao_social TEXT DEFAULT '', nome_fantasia TEXT DEFAULT '', cnpj TEXT DEFAULT '', ie TEXT DEFAULT '', im TEXT DEFAULT '', endereco TEXT DEFAULT '', numero TEXT DEFAULT '', bairro TEXT DEFAULT '', cidade TEXT DEFAULT '', uf TEXT DEFAULT '', cep TEXT DEFAULT '', telefone TEXT DEFAULT '', email TEXT DEFAULT '', regime_tributario TEXT DEFAULT 'simples_nacional', crt INTEGER DEFAULT 1)",
+        "CREATE TABLE IF NOT EXISTS config_fiscal (id INTEGER PRIMARY KEY, ambiente INTEGER DEFAULT 2, serie_nfce INTEGER DEFAULT 1, serie_nfe INTEGER DEFAULT 1, csc_id TEXT DEFAULT '', csc_token TEXT DEFAULT '', proximo_numero_nfce INTEGER DEFAULT 1, proximo_numero_nfe INTEGER DEFAULT 1, certificado_arquivo TEXT DEFAULT '', certificado_senha TEXT DEFAULT '')",
+        "CREATE TABLE IF NOT EXISTS entradas_xml (id INTEGER PRIMARY KEY AUTOINCREMENT, chave_acesso TEXT DEFAULT '', fornecedor TEXT DEFAULT '', cnpj_fornecedor TEXT DEFAULT '', data_emissao TEXT DEFAULT '', valor_total REAL DEFAULT 0, xml_conteudo TEXT DEFAULT '', processado INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+        "CREATE TABLE IF NOT EXISTS itens_entrada_xml (id INTEGER PRIMARY KEY AUTOINCREMENT, entrada_id INTEGER NOT NULL, codigo TEXT DEFAULT '', descricao TEXT DEFAULT '', ncm TEXT DEFAULT '', cfop TEXT DEFAULT '', unidade TEXT DEFAULT '', quantidade REAL DEFAULT 0, valor_unitario REAL DEFAULT 0, valor_total REAL DEFAULT 0, produto_id INTEGER DEFAULT NULL, FOREIGN KEY(entrada_id) REFERENCES entradas_xml(id))",
     ]:
         try: c.execute(sql); conn.commit()
         except: pass
@@ -1440,6 +1444,231 @@ def api_extrato_fidelidade(cliente_id):
 
 
 # ─────────────────────────────────────────────
+# EMPRESA
+# ─────────────────────────────────────────────
+def api_get_empresa():
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT * FROM empresa LIMIT 1")
+    row = c.fetchone()
+    if not row:
+        c.execute("INSERT INTO empresa (id) VALUES (1)")
+        conn.commit()
+        c.execute("SELECT * FROM empresa LIMIT 1")
+        row = c.fetchone()
+    conn.close()
+    return dict(row)
+
+def api_salvar_empresa(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("DELETE FROM empresa")
+    c.execute("""INSERT INTO empresa (id,razao_social,nome_fantasia,cnpj,ie,im,
+                 endereco,numero,bairro,cidade,uf,cep,telefone,email,regime_tributario,crt)
+                 VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+              (data.get('razao_social',''), data.get('nome_fantasia',''),
+               data.get('cnpj',''), data.get('ie',''), data.get('im',''),
+               data.get('endereco',''), data.get('numero',''), data.get('bairro',''),
+               data.get('cidade',''), data.get('uf',''), data.get('cep',''),
+               data.get('telefone',''), data.get('email',''),
+               data.get('regime_tributario','simples_nacional'), int(data.get('crt',1))))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+# ─────────────────────────────────────────────
+# CONFIG FISCAL
+# ─────────────────────────────────────────────
+def api_get_fiscal():
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT * FROM config_fiscal LIMIT 1")
+    row = c.fetchone()
+    if not row:
+        c.execute("INSERT INTO config_fiscal (id) VALUES (1)")
+        conn.commit()
+        c.execute("SELECT * FROM config_fiscal LIMIT 1")
+        row = c.fetchone()
+    conn.close()
+    return dict(row)
+
+def api_salvar_fiscal(data):
+    conn = get_connection(); c = conn.cursor()
+    # Keep certificado_arquivo if not provided
+    c.execute("SELECT certificado_arquivo FROM config_fiscal LIMIT 1")
+    old = c.fetchone()
+    cert = data.get('certificado_arquivo', old['certificado_arquivo'] if old else '')
+    c.execute("DELETE FROM config_fiscal")
+    c.execute("""INSERT INTO config_fiscal (id,ambiente,serie_nfce,serie_nfe,csc_id,csc_token,
+                 proximo_numero_nfce,proximo_numero_nfe,certificado_arquivo,certificado_senha)
+                 VALUES (1,?,?,?,?,?,?,?,?,?)""",
+              (int(data.get('ambiente',2)), int(data.get('serie_nfce',1)),
+               int(data.get('serie_nfe',1)), data.get('csc_id',''), data.get('csc_token',''),
+               int(data.get('proximo_numero_nfce',1)), int(data.get('proximo_numero_nfe',1)),
+               cert, data.get('certificado_senha','')))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+def api_upload_certificado(data):
+    """Recebe certificado .pfx em base64 e salva na pasta."""
+    cert_b64 = data.get('certificado','')
+    senha = data.get('senha','')
+    if not cert_b64:
+        return {"ok": False, "erro": "Certificado não enviado"}
+    try:
+        cert_dir = Path(__file__).parent / 'lanchonete' / 'certificados'
+        cert_dir.mkdir(parents=True, exist_ok=True)
+        fname = 'certificado.pfx'
+        import base64
+        content = cert_b64.split(',')[1] if ',' in cert_b64 else cert_b64
+        (cert_dir / fname).write_bytes(base64.b64decode(content))
+        # Salva referência no config
+        conn = get_connection(); c = conn.cursor()
+        c.execute("UPDATE config_fiscal SET certificado_arquivo=?, certificado_senha=? WHERE id=1",
+                  (fname, senha))
+        conn.commit(); conn.close()
+        return {"ok": True, "arquivo": fname}
+    except Exception as e:
+        return {"ok": False, "erro": str(e)}
+
+# ─────────────────────────────────────────────
+# IMPORTAÇÃO XML NFe
+# ─────────────────────────────────────────────
+def api_importar_xml(data):
+    """Recebe XML de NFe em base64 ou texto, parseia e salva."""
+    import xml.etree.ElementTree as ET
+    xml_content = data.get('xml','')
+    if not xml_content:
+        return {"ok": False, "erro": "XML não enviado"}
+    try:
+        # Decode base64 if needed
+        if xml_content.startswith('data:'):
+            import base64
+            xml_content = base64.b64decode(xml_content.split(',')[1]).decode('utf-8')
+
+        ns = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+        root = ET.fromstring(xml_content)
+
+        # Try to find infNFe
+        inf = root.find('.//nfe:infNFe', ns)
+        if inf is None:
+            inf = root.find('.//{http://www.portalfiscal.inf.br/nfe}infNFe')
+        if inf is None:
+            # Try without namespace
+            inf = root.find('.//infNFe')
+        if inf is None:
+            return {"ok": False, "erro": "XML inválido - não encontrou infNFe"}
+
+        # Chave de acesso
+        chave = inf.get('Id','').replace('NFe','')
+
+        # Emitente
+        emit = inf.find('nfe:emit', ns) or inf.find('{http://www.portalfiscal.inf.br/nfe}emit')
+        fornecedor = ''
+        cnpj_forn = ''
+        if emit is not None:
+            xNome = emit.find('nfe:xNome', ns) or emit.find('{http://www.portalfiscal.inf.br/nfe}xNome')
+            cnpjEl = emit.find('nfe:CNPJ', ns) or emit.find('{http://www.portalfiscal.inf.br/nfe}CNPJ')
+            fornecedor = xNome.text if xNome is not None else ''
+            cnpj_forn = cnpjEl.text if cnpjEl is not None else ''
+
+        # Data emissão
+        ide = inf.find('nfe:ide', ns) or inf.find('{http://www.portalfiscal.inf.br/nfe}ide')
+        data_emissao = ''
+        if ide is not None:
+            dhEmi = ide.find('nfe:dhEmi', ns) or ide.find('{http://www.portalfiscal.inf.br/nfe}dhEmi')
+            if dhEmi is not None:
+                data_emissao = dhEmi.text[:10] if dhEmi.text else ''
+
+        # Valor total
+        total_el = inf.find('.//nfe:vNF', ns) or inf.find('.//{http://www.portalfiscal.inf.br/nfe}vNF')
+        valor_total = float(total_el.text) if total_el is not None else 0
+
+        # Salva entrada
+        conn = get_connection(); c = conn.cursor()
+
+        # Verifica duplicata
+        if chave:
+            c.execute("SELECT id FROM entradas_xml WHERE chave_acesso=?", (chave,))
+            if c.fetchone():
+                conn.close()
+                return {"ok": False, "erro": "XML já importado (chave duplicada)"}
+
+        c.execute("""INSERT INTO entradas_xml (chave_acesso,fornecedor,cnpj_fornecedor,data_emissao,valor_total,xml_conteudo)
+                     VALUES (?,?,?,?,?,?)""",
+                  (chave, fornecedor, cnpj_forn, data_emissao, valor_total, xml_content))
+        entrada_id = c.lastrowid
+
+        # Parseia itens (det)
+        itens = []
+        dets = inf.findall('nfe:det', ns) or inf.findall('{http://www.portalfiscal.inf.br/nfe}det')
+        for det in dets:
+            prod = det.find('nfe:prod', ns) or det.find('{http://www.portalfiscal.inf.br/nfe}prod')
+            if prod is None: continue
+
+            def _txt(el, tag):
+                child = el.find('nfe:'+tag, ns) or el.find('{http://www.portalfiscal.inf.br/nfe}'+tag)
+                return child.text if child is not None else ''
+
+            item = {
+                'codigo': _txt(prod,'cProd'),
+                'descricao': _txt(prod,'xProd'),
+                'ncm': _txt(prod,'NCM'),
+                'cfop': _txt(prod,'CFOP'),
+                'unidade': _txt(prod,'uCom'),
+                'quantidade': float(_txt(prod,'qCom') or 0),
+                'valor_unitario': float(_txt(prod,'vUnCom') or 0),
+                'valor_total': float(_txt(prod,'vProd') or 0),
+            }
+            c.execute("""INSERT INTO itens_entrada_xml (entrada_id,codigo,descricao,ncm,cfop,unidade,quantidade,valor_unitario,valor_total)
+                         VALUES (?,?,?,?,?,?,?,?,?)""",
+                      (entrada_id, item['codigo'], item['descricao'], item['ncm'], item['cfop'],
+                       item['unidade'], item['quantidade'], item['valor_unitario'], item['valor_total']))
+            item['id'] = c.lastrowid
+            itens.append(item)
+
+        conn.commit(); conn.close()
+        return {"ok": True, "entrada_id": entrada_id, "fornecedor": fornecedor,
+                "chave": chave, "valor_total": valor_total, "itens": itens, "qtd_itens": len(itens)}
+    except ET.ParseError:
+        return {"ok": False, "erro": "XML mal formado"}
+    except Exception as e:
+        return {"ok": False, "erro": str(e)}
+
+def api_listar_entradas_xml():
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT * FROM entradas_xml ORDER BY id DESC LIMIT 50")
+    entradas = [dict(r) for r in c.fetchall()]
+    for e in entradas:
+        c.execute("SELECT * FROM itens_entrada_xml WHERE entrada_id=?", (e['id'],))
+        e['itens'] = [dict(i) for i in c.fetchall()]
+        del e['xml_conteudo']  # Don't send the full XML to frontend
+    conn.close()
+    return entradas
+
+def api_vincular_item_xml(data):
+    """Vincula item do XML a produto existente e dá entrada no estoque."""
+    conn = get_connection(); c = conn.cursor()
+    item_id = int(data['item_id'])
+    produto_id = int(data['produto_id'])
+    quantidade = float(data.get('quantidade', 0))
+
+    c.execute("UPDATE itens_entrada_xml SET produto_id=? WHERE id=?", (produto_id, item_id))
+    if quantidade > 0:
+        c.execute("UPDATE produtos SET quantidade=quantidade+? WHERE id=?", (quantidade, produto_id))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+def api_confirmar_entrada_xml(data):
+    """Marca entrada como processada e dá entrada de todos os itens vinculados."""
+    conn = get_connection(); c = conn.cursor()
+    entrada_id = int(data['entrada_id'])
+    c.execute("SELECT * FROM itens_entrada_xml WHERE entrada_id=? AND produto_id IS NOT NULL", (entrada_id,))
+    itens = c.fetchall()
+    for item in itens:
+        c.execute("UPDATE produtos SET quantidade=quantidade+? WHERE id=?",
+                  (item['quantidade'], item['produto_id']))
+    c.execute("UPDATE entradas_xml SET processado=1 WHERE id=?", (entrada_id,))
+    conn.commit(); conn.close()
+    return {"ok": True, "itens_processados": len(itens)}
+
+# ─────────────────────────────────────────────
 # INGREDIENTES
 # ─────────────────────────────────────────────
 def api_listar_ingredientes():
@@ -2480,6 +2709,12 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             self.send_json(api_promocoes_ativas()); return
         if path == '/api/cashback/config':
             self.send_json(api_get_cashback_config()); return
+        if path == '/api/empresa':
+            self.send_json(api_get_empresa()); return
+        if path == '/api/fiscal':
+            self.send_json(api_get_fiscal()); return
+        if path == '/api/xml/entradas':
+            self.send_json(api_listar_entradas_xml()); return
         if path == '/api/check-update':
             self.send_json(api_check_update()); return
         if path == '/api/aplicar-update':
@@ -2589,6 +2824,12 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             '/api/ingredientes/excluir':      api_excluir_ingrediente,
             '/api/produtos/ingredientes':     api_vincular_ingrediente,
             '/api/produtos/ingredientes/remover': api_desvincular_ingrediente,
+            '/api/empresa':               api_salvar_empresa,
+            '/api/fiscal':                api_salvar_fiscal,
+            '/api/fiscal/certificado':    api_upload_certificado,
+            '/api/xml/importar':          api_importar_xml,
+            '/api/xml/vincular':          api_vincular_item_xml,
+            '/api/xml/confirmar':         api_confirmar_entrada_xml,
         }
         fn=routes.get(path)
         if fn: self.send_json(fn(data))
@@ -2604,8 +2845,14 @@ def api_check_update():
         url = 'https://raw.githubusercontent.com/Biomarinha00/manafood/main/version.txt'
         req = urllib.request.urlopen(url, timeout=5)
         remote = req.read().decode('utf-8').strip()
+        changelog = ''
+        try:
+            cl_url = 'https://raw.githubusercontent.com/Biomarinha00/manafood/main/changelog.txt'
+            cl_req = urllib.request.urlopen(cl_url, timeout=5)
+            changelog = cl_req.read().decode('utf-8').strip()
+        except: pass
         tem_update = remote != LOCAL_VERSION
-        return {"ok":True,"versao_local":LOCAL_VERSION,"versao_remota":remote,"tem_update":tem_update}
+        return {"ok":True,"versao_local":LOCAL_VERSION,"versao_remota":remote,"tem_update":tem_update,"changelog":changelog}
     except:
         return {"ok":True,"versao_local":LOCAL_VERSION,"versao_remota":"","tem_update":False}
 

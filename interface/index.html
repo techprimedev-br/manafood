@@ -1018,6 +1018,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 <!-- BANNER DE ATUALIZAÇÃO -->
 <div id="update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;padding:10px 16px;text-align:center;font-size:13px;font-weight:600;box-shadow:0 2px 12px rgba(0,0,0,.3)">
   <span id="update-msg">🚀 Nova versão disponível!</span>
+  <div id="update-changelog" style="display:none;background:rgba(0,0,0,.2);border-radius:8px;padding:8px 14px;margin-top:8px;text-align:left;font-size:12px;font-weight:400;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
   <button onclick="aplicarUpdate()" style="margin-left:12px;padding:4px 14px;border-radius:6px;border:none;background:#fff;color:#2563eb;font-size:12px;font-weight:700;cursor:pointer">Atualizar agora</button>
   <button onclick="document.getElementById('update-banner').style.display='none'" style="margin-left:6px;background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:16px">✕</button>
 </div>
@@ -1081,6 +1082,15 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
     </button>
     <button class="nav-btn nav-gerente" data-perfil="gerente" onclick="showPanel('reposicao',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Reposição
+    </button>
+    <button class="nav-btn nav-admin" data-perfil="admin" onclick="showPanel('empresa',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Empresa
+    </button>
+    <button class="nav-btn nav-admin" data-perfil="admin" onclick="showPanel('fiscal',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Fiscal
+    </button>
+    <button class="nav-btn nav-gerente" data-perfil="gerente" onclick="showPanel('xml',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>XML / Entrada
     </button>
     <button class="nav-btn nav-admin" data-perfil="admin" onclick="showPanel('backup',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Backup
@@ -2346,6 +2356,116 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       </div>
     </div>
 
+    <!-- EMPRESA -->
+    <div class="panel" id="panel-empresa">
+      <div class="panel-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dados da Empresa
+      </div>
+      <div class="card" style="max-width:800px">
+        <div class="cad-form" style="grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group full"><label>Razão Social *</label><input id="emp-razao" placeholder="Razão social completa"></div>
+          <div class="form-group full"><label>Nome Fantasia</label><input id="emp-fantasia" placeholder="Nome fantasia"></div>
+          <div class="form-group"><label>CNPJ *</label><input id="emp-cnpj" placeholder="00.000.000/0000-00" maxlength="18"></div>
+          <div class="form-group"><label>Inscrição Estadual</label><input id="emp-ie" placeholder="IE"></div>
+          <div class="form-group"><label>Inscrição Municipal</label><input id="emp-im" placeholder="IM"></div>
+          <div class="form-group"><label>Regime Tributário</label>
+            <select id="emp-regime">
+              <option value="simples_nacional">Simples Nacional</option>
+              <option value="simples_excesso">Simples Nacional - Excesso</option>
+              <option value="normal">Regime Normal</option>
+            </select>
+          </div>
+          <div class="form-group"><label>CRT</label>
+            <select id="emp-crt">
+              <option value="1">1 - Simples Nacional</option>
+              <option value="2">2 - Simples Nacional Excesso</option>
+              <option value="3">3 - Regime Normal</option>
+            </select>
+          </div>
+          <div class="form-group full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px"><label style="font-weight:700;color:var(--accent)">📍 Endereço</label></div>
+          <div class="form-group" style="grid-column:span 2"><label>Logradouro</label><input id="emp-endereco" placeholder="Rua/Av"></div>
+          <div class="form-group"><label>Número</label><input id="emp-numero" placeholder="Nº"></div>
+          <div class="form-group"><label>Bairro</label><input id="emp-bairro" placeholder="Bairro"></div>
+          <div class="form-group"><label>Cidade</label><input id="emp-cidade" placeholder="Cidade"></div>
+          <div class="form-group"><label>UF</label><input id="emp-uf" placeholder="BA" maxlength="2" style="text-transform:uppercase"></div>
+          <div class="form-group"><label>CEP</label><input id="emp-cep" placeholder="00000-000" maxlength="9"></div>
+          <div class="form-group full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px"><label style="font-weight:700;color:var(--accent)">📞 Contato</label></div>
+          <div class="form-group"><label>Telefone</label><input id="emp-tel" placeholder="(00) 00000-0000"></div>
+          <div class="form-group"><label>Email</label><input id="emp-email" placeholder="email@empresa.com" type="email"></div>
+        </div>
+        <button onclick="salvarEmpresa()" class="confirm-btn" style="margin-top:16px;max-width:300px">💾 Salvar dados da empresa</button>
+      </div>
+    </div>
+
+    <!-- FISCAL -->
+    <div class="panel" id="panel-fiscal">
+      <div class="panel-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>Configuração Fiscal
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px">
+        <div class="card">
+          <div class="card-title">⚙️ Configurações Gerais</div>
+          <div class="cad-form" style="grid-template-columns:1fr;gap:10px">
+            <div class="form-group"><label>Ambiente *</label>
+              <select id="fis-ambiente">
+                <option value="2">2 - Homologação (testes)</option>
+                <option value="1">1 - Produção</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Série NFe</label><input id="fis-serie-nfe" type="number" min="1" value="1"></div>
+            <div class="form-group"><label>Série NFCe</label><input id="fis-serie-nfce" type="number" min="1" value="1"></div>
+            <div class="form-group"><label>Próx. número NFe</label><input id="fis-prox-nfe" type="number" min="1" value="1"></div>
+            <div class="form-group"><label>Próx. número NFCe</label><input id="fis-prox-nfce" type="number" min="1" value="1"></div>
+          </div>
+          <button onclick="salvarFiscal()" class="confirm-btn" style="margin-top:12px">💾 Salvar configuração</button>
+        </div>
+        <div class="card">
+          <div class="card-title">🔐 CSC / Token NFCe</div>
+          <div class="cad-form" style="grid-template-columns:1fr;gap:10px">
+            <div class="form-group"><label>CSC ID (identificador)</label><input id="fis-csc-id" placeholder="Ex: 000001"></div>
+            <div class="form-group"><label>CSC Token</label><input id="fis-csc-token" placeholder="Token fornecido pela SEFAZ"></div>
+          </div>
+          <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:16px">
+            <div class="card-title">📜 Certificado Digital</div>
+            <div id="fis-cert-status" style="font-size:12px;color:var(--text2);margin-bottom:10px">Nenhum certificado carregado</div>
+            <input type="file" id="fis-cert-file" accept=".pfx,.p12" style="font-size:12px;margin-bottom:8px">
+            <div class="form-group"><label>Senha do certificado</label><input id="fis-cert-senha" type="password" placeholder="Senha do .pfx"></div>
+            <button onclick="uploadCertificado()" style="padding:8px 16px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">📤 Enviar certificado</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- XML / ENTRADA -->
+    <div class="panel" id="panel-xml">
+      <div class="panel-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Importação de XML — Entrada de Mercadoria
+      </div>
+      <!-- Upload -->
+      <div class="card" style="max-width:800px;margin-bottom:16px">
+        <div class="card-title">📤 Importar XML de NFe</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="xml-file" accept=".xml" style="font-size:13px">
+          <button onclick="importarXML()" style="padding:8px 18px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer">📥 Importar</button>
+        </div>
+        <div id="xml-resultado" style="display:none;margin-top:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px">
+          <div style="font-weight:700;color:#166534;margin-bottom:6px" id="xml-res-titulo"></div>
+          <div style="font-size:12px;color:#555" id="xml-res-info"></div>
+        </div>
+      </div>
+      <!-- Itens do último XML -->
+      <div class="card" style="max-width:800px;margin-bottom:16px;display:none" id="xml-itens-card">
+        <div class="card-title">📋 Itens do XML — Vincular aos produtos</div>
+        <div id="xml-itens-lista"></div>
+        <button onclick="confirmarEntradaXML()" class="confirm-btn" style="margin-top:12px">✅ Confirmar entrada no estoque</button>
+      </div>
+      <!-- Histórico -->
+      <div class="card" style="max-width:800px">
+        <div class="card-title">📚 XMLs Importados</div>
+        <div id="xml-historico"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
     <div class="panel" id="panel-log">
       <div class="panel-title">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Log de Auditoria
@@ -2829,7 +2949,7 @@ function showPanel(id,btn){
   btn.classList.add('active');
   closeMobMenu();
   window.scrollTo({top:0,behavior:'instant'});
-  var nomes={pdv:'PDV',estoque:'Estoque',clientes:'Clientes',financeiro:'Financeiro',contas:'Contas',historico:'Histórico',entregas:'Entregas',caixa:'Caixa',relatorio:'Relatórios',cardapio:'Cardápio',cupons:'Cupons',cmv:'CMV',comanda:'Comanda',reposicao:'Reposição',backup:'Backup',config:'Configurações',usuarios:'Usuários',log:'Log'};
+  var nomes={pdv:'PDV',estoque:'Estoque',clientes:'Clientes',financeiro:'Financeiro',contas:'Contas',historico:'Histórico',entregas:'Entregas',caixa:'Caixa',relatorio:'Relatórios',cardapio:'Cardápio',cupons:'Cupons',cmv:'CMV',comanda:'Comanda',reposicao:'Reposição',empresa:'Empresa',fiscal:'Fiscal',xml:'XML / Entrada',backup:'Backup',config:'Configurações',usuarios:'Usuários',log:'Log'};
   var t=document.getElementById('mob-panel-title');if(t)t.textContent=nomes[id]||id;
   if(id==='pdv'){loadProdutos();loadClientesSelect()}
   if(id==='estoque') loadEstoque();
@@ -2864,6 +2984,9 @@ function showPanel(id,btn){
     if(_rd){var _ri=document.getElementById('repo-dias');if(_ri)_ri.value=_rd}
     loadReposicao();
   }
+  if(id==='empresa'){ loadEmpresa(); }
+  if(id==='fiscal'){ loadFiscal(); }
+  if(id==='xml'){ loadHistoricoXML(); }
 
   // redireciona cadastro legado para aba dentro do estoque
   if(id==='cadastro'){
@@ -5202,13 +5325,165 @@ function copiarListaReposicao(){
     navigator.clipboard.writeText(txt).then(()=>toast('📋 Lista copiada! Cole no WhatsApp')).catch(()=>_copiarFallback(txt));
   }else _copiarFallback(txt);
 }
+// ── EMPRESA ──────────────────────────────────────────────────────────────────
+async function loadEmpresa(){
+  var d=await api('/empresa');if(!d)return;
+  document.getElementById('emp-razao').value=d.razao_social||'';
+  document.getElementById('emp-fantasia').value=d.nome_fantasia||'';
+  document.getElementById('emp-cnpj').value=d.cnpj||'';
+  document.getElementById('emp-ie').value=d.ie||'';
+  document.getElementById('emp-im').value=d.im||'';
+  document.getElementById('emp-regime').value=d.regime_tributario||'simples_nacional';
+  document.getElementById('emp-crt').value=d.crt||1;
+  document.getElementById('emp-endereco').value=d.endereco||'';
+  document.getElementById('emp-numero').value=d.numero||'';
+  document.getElementById('emp-bairro').value=d.bairro||'';
+  document.getElementById('emp-cidade').value=d.cidade||'';
+  document.getElementById('emp-uf').value=d.uf||'';
+  document.getElementById('emp-cep').value=d.cep||'';
+  document.getElementById('emp-tel').value=d.telefone||'';
+  document.getElementById('emp-email').value=d.email||'';
+}
+async function salvarEmpresa(){
+  var res=await api('/empresa','POST',{
+    razao_social:document.getElementById('emp-razao').value,
+    nome_fantasia:document.getElementById('emp-fantasia').value,
+    cnpj:document.getElementById('emp-cnpj').value,
+    ie:document.getElementById('emp-ie').value,
+    im:document.getElementById('emp-im').value,
+    regime_tributario:document.getElementById('emp-regime').value,
+    crt:document.getElementById('emp-crt').value,
+    endereco:document.getElementById('emp-endereco').value,
+    numero:document.getElementById('emp-numero').value,
+    bairro:document.getElementById('emp-bairro').value,
+    cidade:document.getElementById('emp-cidade').value,
+    uf:document.getElementById('emp-uf').value.toUpperCase(),
+    cep:document.getElementById('emp-cep').value,
+    telefone:document.getElementById('emp-tel').value,
+    email:document.getElementById('emp-email').value
+  });
+  if(res&&res.ok) toast('Dados da empresa salvos!');
+  else toast((res&&res.erro)||'Erro ao salvar','err');
+}
+
+// ── FISCAL ───────────────────────────────────────────────────────────────────
+async function loadFiscal(){
+  var d=await api('/fiscal');if(!d)return;
+  document.getElementById('fis-ambiente').value=d.ambiente||2;
+  document.getElementById('fis-serie-nfe').value=d.serie_nfe||1;
+  document.getElementById('fis-serie-nfce').value=d.serie_nfce||1;
+  document.getElementById('fis-prox-nfe').value=d.proximo_numero_nfe||1;
+  document.getElementById('fis-prox-nfce').value=d.proximo_numero_nfce||1;
+  document.getElementById('fis-csc-id').value=d.csc_id||'';
+  document.getElementById('fis-csc-token').value=d.csc_token||'';
+  var st=document.getElementById('fis-cert-status');
+  if(d.certificado_arquivo) st.innerHTML='<span style="color:#16a34a;font-weight:700">✅ Certificado: '+d.certificado_arquivo+'</span>';
+  else st.textContent='Nenhum certificado carregado';
+}
+async function salvarFiscal(){
+  var res=await api('/fiscal','POST',{
+    ambiente:document.getElementById('fis-ambiente').value,
+    serie_nfe:document.getElementById('fis-serie-nfe').value,
+    serie_nfce:document.getElementById('fis-serie-nfce').value,
+    proximo_numero_nfe:document.getElementById('fis-prox-nfe').value,
+    proximo_numero_nfce:document.getElementById('fis-prox-nfce').value,
+    csc_id:document.getElementById('fis-csc-id').value,
+    csc_token:document.getElementById('fis-csc-token').value
+  });
+  if(res&&res.ok) toast('Configuração fiscal salva!');
+  else toast((res&&res.erro)||'Erro ao salvar','err');
+}
+async function uploadCertificado(){
+  var file=document.getElementById('fis-cert-file').files[0];
+  if(!file){toast('Selecione o arquivo .pfx','warn');return}
+  var senha=document.getElementById('fis-cert-senha').value;
+  if(!senha){toast('Informe a senha do certificado','warn');return}
+  var reader=new FileReader();
+  reader.onload=async function(e){
+    var res=await api('/fiscal/certificado','POST',{certificado:e.target.result,senha:senha});
+    if(res&&res.ok){toast('Certificado enviado com sucesso!');loadFiscal()}
+    else toast((res&&res.erro)||'Erro ao enviar certificado','err');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── XML / ENTRADA ────────────────────────────────────────────────────────────
+let _lastEntradaId=null;
+async function importarXML(){
+  var file=document.getElementById('xml-file').files[0];
+  if(!file){toast('Selecione um arquivo XML','warn');return}
+  var reader=new FileReader();
+  reader.onload=async function(e){
+    var res=await api('/xml/importar','POST',{xml:e.target.result});
+    var resultado=document.getElementById('xml-resultado');
+    if(res&&res.ok){
+      resultado.style.display='block';
+      document.getElementById('xml-res-titulo').textContent='✅ XML importado: '+res.fornecedor;
+      document.getElementById('xml-res-info').innerHTML='Chave: '+(res.chave||'—')+'<br>Valor: '+fmt(res.valor_total)+' | '+res.qtd_itens+' itens';
+      _lastEntradaId=res.entrada_id;
+      renderItensXML(res.itens);
+      loadHistoricoXML();
+    }else{
+      resultado.style.display='block';
+      resultado.style.background='#fef2f2';resultado.style.borderColor='#fca5a5';
+      document.getElementById('xml-res-titulo').textContent='❌ Erro';
+      document.getElementById('xml-res-info').textContent=(res&&res.erro)||'Erro ao importar';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+function renderItensXML(itens){
+  var card=document.getElementById('xml-itens-card');card.style.display='block';
+  var el=document.getElementById('xml-itens-lista');
+  el.innerHTML='<table class="tbl"><thead><tr><th>Código</th><th>Descrição</th><th>Qtd</th><th>Valor Unit.</th><th>Total</th><th>Vincular produto</th></tr></thead><tbody>'+
+    itens.map(function(it){
+      return '<tr><td>'+it.codigo+'</td><td><strong>'+it.descricao+'</strong></td><td>'+it.quantidade+' '+it.unidade+'</td><td>'+fmt(it.valor_unitario)+'</td><td>'+fmt(it.valor_total)+'</td><td><select data-xml-item="'+it.id+'" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:11px"><option value="">— Selecionar —</option>'+produtos.map(function(p){return'<option value="'+p.id+'">'+p.nome+'</option>'}).join('')+'</select></td></tr>';
+    }).join('')+'</tbody></table>';
+}
+async function confirmarEntradaXML(){
+  if(!_lastEntradaId){toast('Nenhum XML importado','warn');return}
+  // Vincula cada item selecionado
+  var sels=document.querySelectorAll('[data-xml-item]');
+  var vinculados=0;
+  for(var i=0;i<sels.length;i++){
+    if(sels[i].value){
+      await api('/xml/vincular','POST',{item_id:sels[i].dataset.xmlItem,produto_id:sels[i].value,quantidade:0});
+      vinculados++;
+    }
+  }
+  // Confirma entrada
+  var res=await api('/xml/confirmar','POST',{entrada_id:_lastEntradaId});
+  if(res&&res.ok){
+    toast('✅ Entrada confirmada! '+res.itens_processados+' itens deram entrada no estoque');
+    document.getElementById('xml-itens-card').style.display='none';
+    _lastEntradaId=null;
+    loadHistoricoXML();
+    loadProdutos();
+  }else toast((res&&res.erro)||'Erro ao confirmar','err');
+}
+async function loadHistoricoXML(){
+  var d=await api('/xml/entradas');if(!d)return;
+  var el=document.getElementById('xml-historico');
+  if(!d.length){el.innerHTML='<div class="empty">Nenhum XML importado</div>';return}
+  el.innerHTML='<table class="tbl"><thead><tr><th>Data</th><th>Fornecedor</th><th>CNPJ</th><th>Valor</th><th>Itens</th><th>Status</th></tr></thead><tbody>'+
+    d.map(function(e){
+      var st=e.processado?'<span style="color:#16a34a;font-weight:700">✅ Processado</span>':'<span style="color:#f59e0b;font-weight:700">⏳ Pendente</span>';
+      return '<tr><td>'+fmtData(e.data_emissao)+'</td><td><strong>'+e.fornecedor+'</strong></td><td style="font-size:11px">'+e.cnpj_fornecedor+'</td><td>'+fmt(e.valor_total)+'</td><td>'+e.itens.length+'</td><td>'+st+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
 async function checkForUpdate(){
   try{
     var d=await api('/check-update');
     if(d&&d.tem_update){
       var banner=document.getElementById('update-banner');
-      var msg=document.getElementById('update-msg');
-      if(banner){banner.style.display='block';msg.textContent='🚀 Nova versão '+d.versao_remota+' disponível! (atual: '+d.versao_local+')';}
+      if(banner){
+        banner.style.display='block';
+        var cl=d.changelog?d.changelog.split('\n').slice(0,8).join('<br>'):'';
+        document.getElementById('update-msg').innerHTML='🚀 Nova versão '+d.versao_remota+' disponível! <span onclick="document.getElementById(\'update-changelog\').style.display=document.getElementById(\'update-changelog\').style.display===\'block\'?\'none\':\'block\'" style="cursor:pointer;text-decoration:underline;margin-left:8px">Ver novidades</span>';
+        var chDiv=document.getElementById('update-changelog');
+        if(chDiv&&d.changelog) chDiv.textContent=d.changelog;
+      }
     }
   }catch(e){}
 }
