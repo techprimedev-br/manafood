@@ -267,6 +267,7 @@ def api_cadastrar_produto(data):
                 (data['nome'], preco, int(data['quantidade']),
                  data.get('unidades','un'), data.get('categoria','Geral'), imagem, custo, markup, codigo, descricao))
     conn.commit(); new_id = cur.lastrowid; conn.close()
+    _auto_publicar_cardapio()
     return {"id": new_id, "ok": True, "codigo": codigo}
 
 def api_atualizar_produto(data):
@@ -318,6 +319,7 @@ def api_atualizar_produto(data):
         vals.append(pid)
         c.execute(f"UPDATE produtos SET {fields} WHERE id=?", vals)
     conn.commit(); conn.close()
+    _auto_publicar_cardapio()
     return {"ok": True}
 
 def api_imagem_produto(produto_id):
@@ -1002,6 +1004,7 @@ def api_salvar_cardapio_config(data):
                data.get("instagram",""), float(data.get("pedido_minimo",0) or 0),
                data.get("logo","")))
     conn.commit(); conn.close()
+    _auto_publicar_cardapio()
     return {"ok":True}
 
 # ─────────────────────────────────────────────
@@ -1273,6 +1276,7 @@ def api_salvar_promocao(data):
                       (produto_id, tipo, valor, preco_promo, data_inicio, data_fim, ativo, descricao))
             prom_id = c.lastrowid
         conn.commit(); conn.close()
+        _auto_publicar_cardapio()
         return {"ok": True, "id": prom_id, "preco_promo": preco_promo}
     except Exception as e:
         conn.rollback(); conn.close(); return {"ok": False, "erro": str(e)}
@@ -1283,6 +1287,7 @@ def api_excluir_promocao(data):
     conn = get_connection(); c = conn.cursor()
     c.execute("DELETE FROM promocoes WHERE id=?", (int(data['id']),))
     conn.commit(); conn.close()
+    _auto_publicar_cardapio()
     return {"ok": True}
 
 
@@ -2960,6 +2965,18 @@ def api_imprimir(data):
 
     else:
         return {"ok": False, "erro": "Método 'windows' usa impressão pelo navegador"}
+
+def _auto_publicar_cardapio():
+    """Publica cardápio em background se token estiver configurado."""
+    def _pub():
+        try:
+            conn = get_connection(); c = conn.cursor()
+            c.execute("SELECT valor FROM config WHERE chave='github_token'")
+            row = c.fetchone(); conn.close()
+            if row and row['valor']:
+                api_publicar_cardapio()
+        except: pass
+    threading.Thread(target=_pub, daemon=True).start()
 
 def api_publicar_cardapio(data=None):
     """Gera HTML estático do cardápio e publica no GitHub Pages."""
