@@ -4332,8 +4332,45 @@ async function loadContas(){
   salEl.textContent=fmt(saldo);salEl.className='metric-value '+(saldo>=0?'green':'red');
   const hoje_str=hoje();
   document.getElementById('cnt-venc').textContent=data.contas.filter(c=>c.status==='pendente'&&c.vencimento<hoje_str).length;
+  const isMob=window.innerWidth<=1024;
   const renderLista=(lista,tbodyId)=>{
     const tbody=document.getElementById(tbodyId);
+    const container=tbody.parentElement.parentElement;
+    if(isMob){
+      const oldTable=container.querySelector('table');
+      if(oldTable) oldTable.style.display='none';
+      const suffix=tbodyId==='lista-receber'?'contas-rec':'contas-pag';
+      let cardsEl=container.querySelector('.mob-cards-'+suffix);
+      if(!cardsEl){cardsEl=document.createElement('div');cardsEl.className='mob-cards-'+suffix;container.appendChild(cardsEl)}
+      if(!lista.length){cardsEl.innerHTML='<div class="empty">Nenhuma conta</div>';return}
+      cardsEl.innerHTML=lista.map(c=>{
+        const vencido=c.status==='pendente'&&c.vencimento<hoje_str;
+        const badge=c.status==='pago'?'<span class="badge badge-pago">✅ Pago</span>':c.status==='estornado'?'<span class="badge badge-estornado">↩ Estornado</span>':vencido?'<span class="badge badge-venc">Vencida</span>':'<span class="badge badge-pend">Pendente</span>';
+        const acoes=c.status==='pendente'||c.status==='estornado'
+          ?`<button class="btn-sm btn-baixar" onclick="baixarConta(${c.id})" style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">✓ Baixar</button>
+            <button class="btn-sm btn-del" onclick="excluirConta(${c.id})" style="padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer">✕</button>`
+          :`<button class="btn-sm btn-estornar" onclick="estornarConta(${c.id})" style="padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer">↩ Estornar</button>
+            <button class="btn-sm btn-del" onclick="excluirConta(${c.id})" style="padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer">✕</button>`;
+        const corValor=vencido?'#dc2626':'var(--accent)';
+        return `<div style="background:var(--bg2);border:1px solid ${vencido?'#fca5a5':'var(--border)'};border-radius:12px;padding:12px;margin-bottom:8px${vencido?';background:#fff5f5':''}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="font-weight:700;font-size:14px;flex:1;min-width:0">${c.descricao}</div>
+            ${badge}
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">${c.cliente_fornecedor||'—'}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+            <span style="font-weight:700;font-size:15px;color:${corValor}">${fmt(c.valor)}</span>
+            <span style="font-size:12px;color:var(--text2)">Venc: ${fmtData(c.vencimento)}</span>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">${acoes}</div>
+        </div>`;
+      }).join('');
+      return;
+    }
+    // Desktop
+    const oldCards1=container.querySelector('[class^="mob-cards-contas"]');
+    if(oldCards1) oldCards1.remove();
+    const tbl=container.querySelector('table');if(tbl) tbl.style.display='';
     if(!lista.length){tbody.innerHTML='<tr><td colspan="6"><div class="empty">Nenhuma conta</div></td></tr>';return}
     tbody.innerHTML=lista.map(c=>{
       const vencido=c.status==='pendente'&&c.vencimento<hoje_str;
@@ -5154,6 +5191,31 @@ async function loadEntregas(){
   const ativas = (data.entregas||[]).filter(e=>!e.descartada);
   const tabela = document.getElementById('ent-tabela');
   if(!ativas.length){ tabela.innerHTML='<div class="empty">Nenhuma entrega no período</div>'; return; }
+  const isMobEnt=window.innerWidth<=1024;
+  if(isMobEnt){
+    const badges={pendente:'badge-ent-pendente',separado:'badge-ent-separado',saiu:'badge-ent-saiu',entregue:'badge-ent-entregue',desistiu:'badge-cancelada'};
+    const labels={pendente:'🕐 Pendente',separado:'📦 Separado',saiu:'🛵 Saiu',entregue:'✅ Entregue',desistiu:'❌ Desistiu'};
+    tabela.innerHTML='<div class="mob-cards-ent">'+ativas.map(e=>{
+      const st=e.status_entrega||'pendente';
+      return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;font-size:13px">#${e.id} · ${_fmtDataHora(e.data_venda)}</span>
+          <span class="badge ${badges[st]}">${labels[st]}</span>
+        </div>
+        <div style="margin-top:6px">
+          <div style="font-weight:700;font-size:14px">${e.entrega_nome||'—'}</div>
+          <div style="font-size:11px;color:var(--text2)">${e.entrega_telefone||''}</div>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px">${e.entrega_endereco||''}${e.entrega_bairro?' · '+e.entrega_bairro:''}</div>
+        ${e.entregador?'<div style="font-size:12px;color:var(--text2);margin-top:2px">👤 '+e.entregador+'</div>':''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+          <span style="font-weight:700;font-size:15px;color:var(--accent)">${fmt(e.total)}${e.entrega_taxa>0?' <span style="font-size:11px;color:var(--text2);font-weight:400">(+'+fmt(e.entrega_taxa)+' taxa)</span>':''}</span>
+          <button onclick="abrirStatusEntrega(${e.id})" style="padding:4px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--accent-lt);color:var(--accent);font-size:11px;cursor:pointer;font-weight:700">Atualizar</button>
+        </div>
+      </div>`;
+    }).join('')+'</div>';
+    return;
+  }
   tabela.innerHTML = `<table class="tbl">
     <thead><tr>
       <th>#</th><th>Data/Hora</th><th>Cliente</th><th>Endereço</th>
@@ -5260,6 +5322,41 @@ let _ingredientes=[];
 async function loadIngredientes(){
   const data=await api('/ingredientes');if(!data)return;
   _ingredientes=data;
+  const isMob=window.innerWidth<=1024;
+  if(isMob){
+    const container=document.getElementById('ing-body').parentElement.parentElement;
+    const oldTable=container.querySelector('table');
+    if(oldTable) oldTable.style.display='none';
+    let cardsEl=container.querySelector('.mob-cards-ing');
+    if(!cardsEl){cardsEl=document.createElement('div');cardsEl.className='mob-cards-ing';container.appendChild(cardsEl)}
+    if(!data.length){cardsEl.innerHTML='<div class="empty">Nenhum ingrediente cadastrado</div>';return}
+    cardsEl.innerHTML=data.map(i=>{
+      const cor=i.quantidade<=0?'#dc2626':i.quantidade<=i.estoque_minimo?'#f59e0b':'#16a34a';
+      const badge=i.quantidade<=0?'Zerado':i.quantidade<=i.estoque_minimo?'Baixo':'OK';
+      return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700;font-size:14px">${i.nome}</div>
+          <span style="font-size:11px;color:${cor};font-weight:700;background:${cor}15;padding:2px 8px;border-radius:6px">${badge}</span>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:12px;color:var(--text2)">
+          <span>Unidade: <strong>${i.unidade}</strong></span>
+          <span>Estoque: <strong style="color:${cor}">${i.quantidade}</strong></span>
+          <span>Mínimo: <strong>${i.estoque_minimo}</strong></span>
+          <span>Custo: <strong style="color:var(--accent)">${fmt(i.custo)}</strong></span>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button onclick="editarIngrediente(${i.id})" class="btn-sm" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:11px;cursor:pointer">✏️ Editar</button>
+          <button onclick="excluirIngrediente(${i.id})" class="btn-sm btn-danger" style="padding:4px 10px;border-radius:6px;border:none;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer">🗑️ Excluir</button>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+  // Desktop: tabela normal
+  const container2=document.getElementById('ing-body').parentElement.parentElement;
+  const oldCards=container2.querySelector('.mob-cards-ing');
+  if(oldCards) oldCards.remove();
+  const tbl=container2.querySelector('table');if(tbl) tbl.style.display='';
   const tb=document.getElementById('ing-body');
   if(!data.length){tb.innerHTML='<tr><td colspan="6"><div class="empty">Nenhum ingrediente cadastrado</div></td></tr>';return}
   tb.innerHTML=data.map(i=>{
@@ -8242,28 +8339,75 @@ async function loadRelatorio(){
   document.getElementById('rkv-max').textContent  = fmt(d.geral.maior_venda||0);
 
   // por dia
+  const isMobRel=window.innerWidth<=1024;
   const tbDia = document.getElementById('rel-por-dia');
-  if(d.por_dia.length){
-    tbDia.innerHTML = d.por_dia.map(r=>{
-      const [a,m,di]=r.dia.split('-');
-      return `<tr>
-        <td style="font-weight:700">${di}/${m}/${a}</td>
-        <td>${r.qtd}</td>
-        <td style="color:var(--accent);font-weight:700">${fmt(r.total)}</td>
-      </tr>`;
-    }).join('');
-  } else tbDia.innerHTML='<tr><td colspan="3"><div class="empty">Sem dados</div></td></tr>';
+  const containerDia=tbDia.parentElement.parentElement;
+  if(isMobRel){
+    const oldTableDia=containerDia.querySelector('table');
+    if(oldTableDia) oldTableDia.style.display='none';
+    let cardsDia=containerDia.querySelector('.mob-cards-rel-dia');
+    if(!cardsDia){cardsDia=document.createElement('div');cardsDia.className='mob-cards-rel-dia';containerDia.appendChild(cardsDia)}
+    if(d.por_dia.length){
+      cardsDia.innerHTML=d.por_dia.map(r=>{
+        const [a,m,di]=r.dia.split('-');
+        return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:700;font-size:14px">${di}/${m}/${a}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${r.qtd} venda${r.qtd!==1?'s':''}</div>
+          </div>
+          <span style="font-weight:700;font-size:15px;color:var(--accent)">${fmt(r.total)}</span>
+        </div>`;
+      }).join('');
+    } else cardsDia.innerHTML='<div class="empty">Sem dados</div>';
+  } else {
+    const oldCardsDia=containerDia.querySelector('.mob-cards-rel-dia');
+    if(oldCardsDia) oldCardsDia.remove();
+    const tblDia=containerDia.querySelector('table');if(tblDia) tblDia.style.display='';
+    if(d.por_dia.length){
+      tbDia.innerHTML = d.por_dia.map(r=>{
+        const [a,m,di]=r.dia.split('-');
+        return `<tr>
+          <td style="font-weight:700">${di}/${m}/${a}</td>
+          <td>${r.qtd}</td>
+          <td style="color:var(--accent);font-weight:700">${fmt(r.total)}</td>
+        </tr>`;
+      }).join('');
+    } else tbDia.innerHTML='<tr><td colspan="3"><div class="empty">Sem dados</div></td></tr>';
+  }
 
   // top produtos
   const tbProd = document.getElementById('rel-top-prod');
-  if(d.top_produtos.length){
-    tbProd.innerHTML = d.top_produtos.map((p,i)=>`<tr>
-      <td style="color:var(--text2);font-weight:700">#${i+1}</td>
-      <td style="font-weight:700">${p.nome}</td>
-      <td>${p.qtd_vendida}</td>
-      <td style="color:var(--accent);font-weight:700">${fmt(p.receita)}</td>
-    </tr>`).join('');
-  } else tbProd.innerHTML='<tr><td colspan="4"><div class="empty">Sem dados</div></td></tr>';
+  const containerProd=tbProd.parentElement.parentElement;
+  if(isMobRel){
+    const oldTableProd=containerProd.querySelector('table');
+    if(oldTableProd) oldTableProd.style.display='none';
+    let cardsProd=containerProd.querySelector('.mob-cards-rel-prod');
+    if(!cardsProd){cardsProd=document.createElement('div');cardsProd.className='mob-cards-rel-prod';containerProd.appendChild(cardsProd)}
+    if(d.top_produtos.length){
+      cardsProd.innerHTML=d.top_produtos.map((p,i)=>{
+        return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:center">
+          <div style="font-size:16px;font-weight:800;color:var(--text2);min-width:28px;text-align:center">#${i+1}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px">${p.nome}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${p.qtd_vendida} vendida${p.qtd_vendida!==1?'s':''}</div>
+          </div>
+          <span style="font-weight:700;font-size:15px;color:var(--accent)">${fmt(p.receita)}</span>
+        </div>`;
+      }).join('');
+    } else cardsProd.innerHTML='<div class="empty">Sem dados</div>';
+  } else {
+    const oldCardsProd=containerProd.querySelector('.mob-cards-rel-prod');
+    if(oldCardsProd) oldCardsProd.remove();
+    const tblProd=containerProd.querySelector('table');if(tblProd) tblProd.style.display='';
+    if(d.top_produtos.length){
+      tbProd.innerHTML = d.top_produtos.map((p,i)=>`<tr>
+        <td style="color:var(--text2);font-weight:700">#${i+1}</td>
+        <td style="font-weight:700">${p.nome}</td>
+        <td>${p.qtd_vendida}</td>
+        <td style="color:var(--accent);font-weight:700">${fmt(p.receita)}</td>
+      </tr>`).join('');
+    } else tbProd.innerHTML='<tr><td colspan="4"><div class="empty">Sem dados</div></td></tr>';
+  }
 
   // ── FORMA DE PAGAMENTO ─────────────────────────────────────────────────────
   const totalPag = d.por_pagamento.reduce((s,r)=>s+r.total,0);
