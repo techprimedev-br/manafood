@@ -2698,6 +2698,16 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
           </div>
         </div>
 
+      <!-- ATUALIZAÇÕES -->
+      <div class="card" style="margin-top:16px;max-width:820px">
+        <div class="card-title">🔄 Atualizações do Sistema</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:13px;color:var(--text2)">Versão atual: <strong id="cfg-versao-atual">—</strong></span>
+          <button onclick="verificarEAtualizar()" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:700;cursor:pointer">🔄 Verificar atualizações</button>
+          <span id="cfg-update-status" style="font-size:12px"></span>
+        </div>
+      </div>
+
       <!-- FIDELIDADE (Cashback + Pontos) -->
       <div class="card" style="margin-top:16px;max-width:820px">
         <div class="card-title">🎁 Programa de Fidelidade</div>
@@ -5764,6 +5774,25 @@ async function loadHistoricoXML(){
     }).join('')+'</tbody></table>';
 }
 
+async function verificarEAtualizar(){
+  var st=document.getElementById('cfg-update-status');
+  if(st) st.innerHTML='<span style="color:#2563eb">⏳ Verificando...</span>';
+  var d=await api('/check-update');
+  if(!d){if(st)st.innerHTML='<span style="color:#dc2626">❌ Sem conexão</span>';return}
+  if(d.tem_update){
+    if(st)st.innerHTML='<span style="color:#f59e0b">🚀 v'+d.versao_remota+' disponível! Atualizando...</span>';
+    var res=await api('/aplicar-update');
+    if(res&&res.ok){
+      if(st)st.innerHTML='<span style="color:#16a34a">✅ Atualizado para v'+res.versao+'! Recarregando...</span>';
+      setTimeout(function(){location.reload()},2000);
+    }else{
+      if(st)st.innerHTML='<span style="color:#dc2626">❌ '+(res&&res.erro||'Erro')+'</span>';
+    }
+  }else{
+    if(st)st.innerHTML='<span style="color:#16a34a">✅ Sistema atualizado! (v'+d.versao_local+')</span>';
+  }
+}
+
 async function checkForUpdate(){
   try{
     var d=await api('/check-update');
@@ -8291,6 +8320,7 @@ let configAtual = {};
 async function loadConfig(){
   const data = await api('/config'); if(!data) return;
   configAtual = data;
+  var _va=document.getElementById('cfg-versao-atual');if(_va){api('/check-update').then(function(r){if(r)_va.textContent=r.versao_local||'—'})}
   document.getElementById('cfg-pix-chave').value     = data.pix_chave||'';
   document.getElementById('cfg-pix-tipo').value      = data.pix_tipo||'email';
   document.getElementById('cfg-pix-recebedor').value = data.pix_recebedor||'';
