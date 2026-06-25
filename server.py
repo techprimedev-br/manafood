@@ -2679,11 +2679,18 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
         self.end_headers(); self.wfile.write(body)
 
     def send_html(self, content):
+        import gzip as gz
         body=content.encode('utf-8')
-        self.send_response(200)
+        accept=self.headers.get('Accept-Encoding','')
+        if 'gzip' in accept:
+            body=gz.compress(body)
+            self.send_response(200)
+            self.send_header('Content-Encoding','gzip')
+        else:
+            self.send_response(200)
         self.send_header('Content-Type','text/html; charset=utf-8')
         self.send_header('Content-Length',len(body))
-        self.send_header('Cache-Control','public, max-age=300')
+        self.send_header('Cache-Control','public, max-age=3600')
         self.end_headers(); self.wfile.write(body)
 
     def do_OPTIONS(self):
