@@ -3190,7 +3190,9 @@ async function usarCashbackPDV(){
 // ── PDV ────────────────────────────────────────────────────────────────────────
 async function loadProdutos(){
   const data=await api('/produtos'); if(!data) return;
-  produtos=data; renderProdutos();
+  var changed=JSON.stringify(data)!==JSON.stringify(produtos);
+  produtos=data;
+  if(changed) renderProdutos();
 }
 
 function imgTag(p,size=40){
