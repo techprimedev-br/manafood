@@ -9,6 +9,8 @@
 <link rel="icon" href="/favicon.ico" type="image/png">
 <title>Maná Hambugueria - PDV</title>
 <style>
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scaleIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
 /* ── TEMA CLARO PROFISSIONAL ── */
 :root{
   --bg:        #f0f2f5;
@@ -3511,6 +3513,31 @@ function selectPay(t){
     document.getElementById('cre-venc').value=_localDate(d);
   }
 }
+// ── MODAL CUSTOMIZADO (substitui confirm/alert nativo) ──
+function _customConfirm(msg, opts){
+  opts=opts||{};
+  return new Promise(function(resolve){
+    var overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s';
+    var icon=opts.icon||'❓';
+    var confirmText=opts.confirmText||'Confirmar';
+    var cancelText=opts.cancelText||'Cancelar';
+    var confirmColor=opts.confirmColor||'var(--accent)';
+    var title=opts.title||'';
+    overlay.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:400px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.25);animation:scaleIn .2s">'+
+      '<div style="font-size:40px;margin-bottom:10px">'+icon+'</div>'+
+      (title?'<div style="font-size:16px;font-weight:800;color:#1a1a2e;margin-bottom:8px">'+title+'</div>':'')+
+      '<div style="font-size:14px;color:#555;line-height:1.5;margin-bottom:20px">'+msg+'</div>'+
+      '<div style="display:flex;gap:10px;justify-content:center">'+
+      '<button id="_cc_cancel" style="flex:1;padding:11px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#64748b">'+cancelText+'</button>'+
+      '<button id="_cc_ok" style="flex:1;padding:11px;border-radius:10px;border:none;background:'+confirmColor+';color:#fff;font-size:14px;font-weight:700;cursor:pointer">'+confirmText+'</button>'+
+      '</div></div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('#_cc_ok').onclick=function(){overlay.remove();resolve(true)};
+    overlay.querySelector('#_cc_cancel').onclick=function(){overlay.remove();resolve(false)};
+  });
+}
+
 function _calcTroco(){
   var recebido=parseFloat(document.getElementById('troco-recebido').value)||0;
   var sub=carrinho.reduce(function(s,i){return s+i.subtotal-(i.desconto_item||0)},0);
@@ -3933,7 +3960,7 @@ async function salvarCorCategoria(id,cor,nome){
 }
 
 async function excluirCategoria(id,nome){
-  if(!confirm(`Excluir a categoria "${nome}"?`)) return;
+  if(!await _customConfirm(`Excluir a categoria "${nome}"?`,{icon:'🗑️',title:'Excluir categoria',confirmText:'Excluir',confirmColor:'#dc2626'})) return;
   const res=await api('/categorias/excluir','POST',{id,nome});
   if(res&&res.ok){await loadCategorias();toast(`"${nome}" removida!`);}
   else toast(res&&res.erro||'Erro ao excluir','err');
@@ -4341,7 +4368,7 @@ async function salvarClienteForm(){
 
 // Exclusão com confirmação
 async function confirmarExcluirCliente(id,nome){
-  if(!confirm(`Excluir o cliente "${nome}"?\n\nEssa ação não pode ser desfeita.`)) return;
+  if(!await _customConfirm(`Excluir o cliente "${nome}"?<br><br>Essa ação não pode ser desfeita.`,{icon:'🗑️',title:'Excluir cliente',confirmText:'Excluir',confirmColor:'#dc2626'})) return;
   const res=await api('/clientes/inativar','POST',{id});
   if(res&&res.ok){toast(`"${nome}" removido!`);await loadClientes();await loadClientesSelect();}
   else toast('Erro ao excluir','err');
@@ -4424,7 +4451,7 @@ function toggleMarcador(el){
 
 // ── ESTORNO CONTAS ───────────────────────────────────────────────────────────
 async function estornarConta(id){
-  if(!confirm('Estornar esta conta?\n\nO lançamento no financeiro será removido e a conta voltará para Pendente.')) return;
+  if(!await _customConfirm('Estornar esta conta?<br><br>O lançamento no financeiro será removido e a conta voltará para Pendente.',{icon:'↩️',title:'Estornar conta',confirmText:'Estornar',confirmColor:'#f59e0b'})) return;
   const res=await api('/contas/estornar','POST',Object.assign({id}, _u()));
   if(res&&res.ok){
     toast('Conta estornada — voltou para Pendente','warn');
@@ -4434,7 +4461,7 @@ async function estornarConta(id){
 }
 
 async function estornarContaDet(contaId){
-  if(!confirm('↩ Estornar este pagamento?\n\nA conta voltará para Pendente.\nO estorno ficará registrado no histórico do cliente.')) return;
+  if(!await _customConfirm('Estornar este pagamento?<br><br>A conta voltará para Pendente.<br>O estorno ficará registrado no histórico do cliente.',{icon:'↩️',title:'Estornar pagamento',confirmText:'Estornar',confirmColor:'#f59e0b'})) return;
   const res=await api('/contas/estornar','POST',Object.assign({id:contaId}, _u()));
   if(res&&res.ok){
     toast('Pagamento estornado — conta voltou para Pendente','warn');
@@ -4560,7 +4587,7 @@ async function baixarConta(id){
   else toast('Erro ao baixar','err');
 }
 async function excluirConta(id){
-  if(!confirm('Excluir esta conta?'))return;
+  if(!await _customConfirm('Excluir esta conta?',{icon:'🗑️',title:'Excluir conta',confirmText:'Excluir',confirmColor:'#dc2626'}))return;
   const res=await api('/contas/excluir','POST',{id});
   if(res&&res.ok){await loadContas();toast('Conta removida')}
 }
@@ -5482,7 +5509,7 @@ async function marcarClienteDesistiu(id){
 }
 
 async function _recuperarVenda(id, telaOrigem){
-  if(!confirm('Recuperar esta venda? Os itens voltarão para o carrinho no PDV.')) return;
+  if(!await _customConfirm('Recuperar esta venda? Os itens voltarão para o carrinho no PDV.',{icon:'♻️',title:'Recuperar venda',confirmText:'Recuperar',confirmColor:'#16a34a'})) return;
   const res = await api('/vendas/recuperar','POST',Object.assign({id}, _u()));
   if(!res||!res.ok){ toast(res&&res.erro?res.erro:'Erro ao recuperar venda','err'); return; }
   _restaurarCarrinhoRecuperado(res);
@@ -5571,7 +5598,7 @@ function editarIngrediente(id){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 async function excluirIngrediente(id){
-  if(!confirm('Excluir este ingrediente?'))return;
+  if(!await _customConfirm('Excluir este ingrediente?',{icon:'🗑️',title:'Excluir ingrediente',confirmText:'Excluir',confirmColor:'#dc2626'}))return;
   const res=await api('/ingredientes/excluir','POST',{id});
   if(res&&res.ok){toast('Ingrediente excluído');loadIngredientes()}
 }
@@ -6390,7 +6417,7 @@ async function salvarEdicaoProduto(){
 async function confirmarExcluirProduto(){
   const id   = document.getElementById('ep-id').value;
   const nome = document.getElementById('ep-nome').value;
-  if(!confirm(`Excluir o produto "${nome}"?\n\nEle não aparecerá mais no cardápio.`)) return;
+  if(!await _customConfirm(`Excluir o produto "${nome}"?<br><br>Ele não aparecerá mais no cardápio.`,{icon:'🗑️',title:'Excluir produto',confirmText:'Excluir',confirmColor:'#dc2626'})) return;
   const res = await api('/produtos/inativar','POST',{id});
   if(res&&res.ok){closeModalProd();await loadEstoque();await loadProdutos();toast(`"${nome}" removido!`);}
   else toast('Erro ao excluir','err');
@@ -7359,7 +7386,7 @@ function renderPagMix(){
 // ── NOVA VENDA ────────────────────────────────────────────────────────────────
 async function novaVenda(){
   if(carrinho.length > 0){
-    if(!confirm('Limpar o carrinho e iniciar nova venda? O pedido atual será salvo no histórico como "descartado" e pode ser recuperado depois.')) return;
+    if(!await _customConfirm('Limpar o carrinho e iniciar nova venda? O pedido atual será salvo no histórico como descartado e pode ser recuperado depois.',{icon:'🆕',title:'Nova venda',confirmText:'Limpar e iniciar',confirmColor:'var(--accent)'})) return;
     const salvou = await _descartarCarrinhoAtual();
     if(!salvou){
       toast('Não foi possível salvar o pedido — o carrinho NÃO foi limpo, tente novamente','err');
@@ -7812,7 +7839,7 @@ async function loadCupons(){
     const btnE=e.target.closest('[data-edit-cupom]');
     if(btnE){ const cup=d.find(x=>x.id==btnE.dataset.editCupom); if(cup){ document.getElementById('cup-id').value=cup.id; document.getElementById('cup-codigo').value=cup.codigo; document.getElementById('cup-tipo').value=cup.tipo; document.getElementById('cup-valor').value=cup.valor; document.getElementById('cup-limite').value=cup.limite_usos; document.getElementById('cup-validade').value=cup.validade||''; document.getElementById('cup-ativo').checked=!!cup.ativo; } return; }
     const btnD=e.target.closest('[data-del-cupom]');
-    if(btnD && confirm('Excluir este cupom?')){ await api('/cupons/excluir','POST',{id:btnD.dataset.delCupom}); loadCupons(); }
+    if(btnD && await _customConfirm('Excluir este cupom?',{icon:'🗑️',title:'Excluir cupom',confirmText:'Excluir',confirmColor:'#dc2626'})){ await api('/cupons/excluir','POST',{id:btnD.dataset.delCupom}); loadCupons(); }
   };
 }
 async function salvarCupom(){
@@ -7882,7 +7909,7 @@ async function loadPromocoes(){
       return;
     }
     const btnD=e.target.closest('[data-del-promo]');
-    if(btnD && confirm('Excluir esta promoção?')){ await excluirPromocao(btnD.dataset.delPromo); }
+    if(btnD && await _customConfirm('Excluir esta promoção?',{icon:'🗑️',title:'Excluir promoção',confirmText:'Excluir',confirmColor:'#dc2626'})){ await excluirPromocao(btnD.dataset.delPromo); }
   };
 }
 
@@ -8196,11 +8223,12 @@ function imprimirComanda(){
 }
 
 async function restaurarBackup(arquivo){
-  if(!confirm(
-    '⚠️ ATENÇÃO: Restaurar backup de '+arquivo+'\n\n'+
-    'O banco atual será substituído.\n'+
-    'Uma cópia de segurança do banco atual será salva automaticamente antes.\n\n'+
-    'Deseja continuar?'
+  if(!await _customConfirm(
+    '⚠️ ATENÇÃO: Restaurar backup de '+arquivo+'<br><br>'+
+    'O banco atual será substituído.<br>'+
+    'Uma cópia de segurança do banco atual será salva automaticamente antes.<br><br>'+
+    'Deseja continuar?',
+    {icon:'⚠️',title:'Restaurar backup',confirmText:'Restaurar',confirmColor:'#dc2626'}
   )) return;
   const btn = document.getElementById('btn-backup');
   if(btn){ btn.disabled=true; }
@@ -8365,8 +8393,8 @@ async function fazerLogin(){
   }
 }
 
-function fazerLogout(){
-  if(!confirm('Deseja sair do sistema?')) return;
+async function fazerLogout(){
+  if(!await _customConfirm('Deseja sair do sistema?',{icon:'👋',title:'Sair do sistema',confirmText:'Sair',confirmColor:'#dc2626'})) return;
   _pararAutoRefresh();
   usuarioLogado=null;
   localStorage.removeItem('usuarioLogado');
@@ -8518,7 +8546,7 @@ async function salvarUsuario(){
 }
 
 async function excluirUsuario(id,nome){
-  if(!confirm(`Desativar o usuário "${nome}"?`)) return;
+  if(!await _customConfirm(`Desativar o usuário "${nome}"?`,{icon:'🚫',title:'Desativar usuário',confirmText:'Desativar',confirmColor:'#dc2626'})) return;
   const res = await api('/usuarios/excluir','POST',Object.assign({id}, _u()));
   if(res&&res.ok){toast('Usuário desativado');await loadUsuarios();}
   else toast(res&&res.erro?res.erro:'Erro','err');
