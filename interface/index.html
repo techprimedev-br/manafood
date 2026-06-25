@@ -5888,7 +5888,7 @@ async function loadHistoricoXML(){
 }
 
 // ── ALERTA SANGRIA ──
-var _sangriaAlertado=false;
+var _sangriaAlertado=false,_sangriaAvisos=0,_sangriaBloqueado=false;
 async function _verificarSangria(){
   if(!configAtual||configAtual.sangria_alerta_ativo==='0') return;
   var limite=parseFloat(configAtual.sangria_limite_dinheiro||500);
@@ -5898,22 +5898,42 @@ async function _verificarSangria(){
     if(!cxRes||!cxRes.aberto||!cxRes.caixa) return;
     var cx=cxRes.caixa;
     var saldoDin=parseFloat(cx.saldo_dinheiro||0);
-    if(saldoDin>=limite&&!_sangriaAlertado){
-      _sangriaAlertado=true;
-      toast('🩸 ALERTA: Saldo em dinheiro R$ '+saldoDin.toFixed(2).replace('.',',')+' atingiu o limite de R$ '+limite.toFixed(2).replace('.',',')+'. Realize uma SANGRIA!','err');
-      var modal=document.createElement('div');
-      modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
-      modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;max-width:400px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.3)">'+
-        '<div style="font-size:40px;margin-bottom:8px">🩸</div>'+
-        '<div style="font-size:18px;font-weight:800;color:#dc2626;margin-bottom:8px">ALERTA DE SANGRIA</div>'+
-        '<div style="font-size:14px;color:#555;margin-bottom:16px">O saldo em dinheiro no caixa atingiu <strong style="color:#dc2626">'+fmt(saldoDin)+'</strong>.<br>Limite configurado: <strong>'+fmt(limite)+'</strong></div>'+
-        '<div style="display:flex;gap:8px;justify-content:center">'+
-        '<button onclick="this.closest(\'div[style*=position]\').remove();showPanel(\'caixa\',document.querySelector(\'.nav-btn[onclick*=caixa]\'))" style="padding:10px 20px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:14px;font-weight:700;cursor:pointer">🩸 Fazer sangria</button>'+
-        '<button onclick="this.closest(\'div[style*=position]\').remove()" style="padding:10px 20px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:14px;cursor:pointer">Depois</button>'+
-        '</div></div>';
-      document.body.appendChild(modal);
+    if(saldoDin>=limite){
+      if(!_sangriaAlertado){
+        _sangriaAlertado=true;
+        _sangriaAvisos++;
+        var maxAvisos=3;
+        var bloqueando=_sangriaAvisos>=maxAvisos;
+        if(bloqueando){
+          _sangriaBloqueado=true;
+          var btn=document.getElementById('confirm-btn');
+          if(btn){btn.disabled=true;btn.textContent='🔒 Bloqueado — Faça a sangria'}
+        }
+        toast('🩸 ALERTA '+_sangriaAvisos+'/'+maxAvisos+': Saldo '+fmt(saldoDin)+' atingiu limite '+fmt(limite)+(bloqueando?' — CAIXA BLOQUEADO!':''),'err');
+        var modal=document.createElement('div');
+        modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+        modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;max-width:400px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.3)">'+
+          '<div style="font-size:40px;margin-bottom:8px">🩸</div>'+
+          '<div style="font-size:18px;font-weight:800;color:#dc2626;margin-bottom:8px">'+(bloqueando?'CAIXA BLOQUEADO':'ALERTA DE SANGRIA')+'</div>'+
+          '<div style="font-size:13px;color:#999;margin-bottom:4px">Aviso '+_sangriaAvisos+' de '+maxAvisos+'</div>'+
+          '<div style="font-size:14px;color:#555;margin-bottom:16px">Saldo em dinheiro: <strong style="color:#dc2626">'+fmt(saldoDin)+'</strong><br>Limite: <strong>'+fmt(limite)+'</strong>'+
+          (bloqueando?'<br><br><strong style="color:#dc2626">Vendas bloqueadas até realizar a sangria!</strong>':'')+'</div>'+
+          '<div style="display:flex;gap:8px;justify-content:center">'+
+          '<button onclick="this.closest(\'div[style*=position]\').remove();showPanel(\'caixa\',document.querySelector(\'.nav-btn[onclick*=caixa]\'))" style="padding:10px 20px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:14px;font-weight:700;cursor:pointer">🩸 Fazer sangria</button>'+
+          (bloqueando?'':'<button onclick="this.closest(\'div[style*=position]\').remove()" style="padding:10px 20px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:14px;cursor:pointer">Depois</button>')+
+          '</div></div>';
+        document.body.appendChild(modal);
+      }
+    }else{
+      _sangriaAlertado=false;
+      if(_sangriaBloqueado){
+        _sangriaBloqueado=false;
+        _sangriaAvisos=0;
+        var btn=document.getElementById('confirm-btn');
+        if(btn){btn.disabled=false;btn.textContent='Confirmar venda'}
+        toast('✅ Sangria realizada — caixa desbloqueado!');
+      }
     }
-    if(saldoDin<limite) _sangriaAlertado=false;
   }catch(e){}
 }
 
