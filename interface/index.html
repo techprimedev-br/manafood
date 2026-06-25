@@ -122,6 +122,7 @@
 
 /* ── MOBILE RESPONSIVE ─────────────────────────────────────── */
 .mob-topbar{display:none}
+.mob-close-btn{display:none}
 @media(max-width:700px){
   .mob-topbar{
     display:flex;align-items:center;justify-content:space-between;
@@ -144,6 +145,8 @@
     box-shadow:4px 0 20px rgba(0,0,0,.4);
     overflow:hidden;overflow-y:auto;
   }
+  .mob-close-btn{display:block;position:absolute;top:10px;right:10px;background:none;border:none;color:rgba(255,255,255,.7);font-size:20px;cursor:pointer;z-index:301;padding:4px 8px;border-radius:6px}
+  .mob-close-btn:hover{color:#fff;background:rgba(255,255,255,.1)}
   .sidebar-nav-scroll{max-height:calc(100vh - 140px)}
   .sidebar.mob-open{left:0}
   .sidebar-overlay{
@@ -1057,6 +1060,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 
 <div class="app">
   <div class="sidebar" id="sidebar">
+    <button class="mob-close-btn" onclick="closeMobMenu()" aria-label="Fechar menu">✕</button>
     <button class="sidebar-toggle-btn" id="sidebar-toggle" onclick="toggleSidebarMini()" title="Minimizar menu">‹</button>
     <div class="logo"><h1>🍔 Maná Hambugueria</h1><span style="color:var(--text2)" id="sidebar-versao">PDV</span></div>
     <div class="sidebar-nav-scroll" id="sidebar-nav-scroll">

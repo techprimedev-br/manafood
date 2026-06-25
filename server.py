@@ -2701,6 +2701,36 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin','*')
         self.end_headers(); self.wfile.write(body)
 
+    _html_cache = {'gzip': None, 'raw': None, 'mtime': 0}
+
+    def send_html_cached(self):
+        import os
+        try:
+            mtime = os.path.getmtime(INTERFACE_PATH)
+        except:
+            mtime = 0
+        c = self.__class__._html_cache
+        if c['mtime'] != mtime or c['gzip'] is None:
+            import gzip as gz
+            raw = INTERFACE_PATH.read_text(encoding='utf-8') if INTERFACE_PATH.exists() else "<h2>Coloque index.html em interface/</h2>"
+            raw_bytes = raw.encode('utf-8')
+            c['raw'] = raw_bytes
+            c['gzip'] = gz.compress(raw_bytes)
+            c['mtime'] = mtime
+        accept = self.headers.get('Accept-Encoding', '')
+        if 'gzip' in accept:
+            body = c['gzip']
+            self.send_response(200)
+            self.send_header('Content-Encoding', 'gzip')
+        else:
+            body = c['raw']
+            self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', len(body))
+        self.send_header('Cache-Control', 'public, max-age=3600')
+        self.end_headers()
+        self.wfile.write(body)
+
     def send_html(self, content):
         import gzip as gz
         body=content.encode('utf-8')
@@ -2729,8 +2759,8 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
         from urllib.parse import unquote
         params = {unquote(k): unquote(v) for k,v in (p.split('=',1) for p in parsed.query.split('&') if '=' in p)} if parsed.query else {}
         if path in ('/','index.html'):
-            self.send_html(INTERFACE_PATH.read_text(encoding='utf-8') if INTERFACE_PATH.exists()
-                           else "<h2>Coloque index.html em interface/</h2>")
+            self.send_html_cached()
+
             return
         if path == '/cardapio':
             self.send_html(_gerar_pagina_cardapio())
