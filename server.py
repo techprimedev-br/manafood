@@ -117,6 +117,7 @@ def init_database():
         "ALTER TABLE vendas ADD COLUMN caixa_id INTEGER DEFAULT NULL",
         "ALTER TABLE caixa ADD COLUMN usuario_id INTEGER DEFAULT NULL",
         "ALTER TABLE caixa ADD COLUMN usuario_nome TEXT DEFAULT ''",
+        "ALTER TABLE caixa ADD COLUMN sangria_avisos INTEGER DEFAULT 0",
         "ALTER TABLE vendas ADD COLUMN cancelada INTEGER DEFAULT 0",
         "ALTER TABLE vendas ADD COLUMN motivo_cancelamento TEXT DEFAULT ''",
         "ALTER TABLE vendas ADD COLUMN cancelada_em TIMESTAMP DEFAULT NULL",
@@ -2409,6 +2410,7 @@ def api_status_caixa(params=None):
         suprimentos = sum(m['valor'] for m in caixa['movimentos'] if m['tipo']=='suprimento')
         sangrias = sum(m['valor'] for m in caixa['movimentos'] if m['tipo']=='sangria')
         caixa['saldo_dinheiro'] = (caixa.get('troco_abertura',0) or 0) + (vendas_din['total'] if vendas_din else 0) + suprimentos - sangrias
+        caixa['sangria_avisos'] = caixa.get('sangria_avisos',0) or 0
         conn.close(); return {'aberto': True, 'caixa': caixa, 'usuario_caixa': caixa.get('usuario_nome','')}
     conn.close(); return {'aberto': False, 'caixa': None}
 
@@ -2480,8 +2482,19 @@ def api_sangria_caixa(data):
     uid=data.get('_uid'); unome=data.get('_unome','Sistema')
     c.execute("INSERT INTO movimentos_caixa (caixa_id,tipo,descricao,valor) VALUES (?,?,?,?)",
               (row['id'], 'sangria', desc, valor))
+    c.execute("UPDATE caixa SET sangria_avisos=0 WHERE id=?", (row['id'],))
     _log(c, uid, unome, 'SANGRIA', 'Caixa', f"Sangria {fmt_val(valor)} — {desc}")
     conn.commit(); conn.close(); return {"ok": True}
+
+def _incrementar_sangria_aviso():
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT id,sangria_avisos FROM caixa WHERE status='aberto' ORDER BY id DESC LIMIT 1")
+    row = c.fetchone()
+    if not row: conn.close(); return {"ok":False}
+    novo = (row['sangria_avisos'] or 0) + 1
+    c.execute("UPDATE caixa SET sangria_avisos=? WHERE id=?", (novo, row['id']))
+    conn.commit(); conn.close()
+    return {"ok":True,"avisos":novo}
 
 def api_suprimento_caixa(data):
     conn = get_connection(); c = conn.cursor()
@@ -2857,6 +2870,7 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             '/api/caixa/abrir':        api_abrir_caixa,
             '/api/caixa/fechar':       api_fechar_caixa,
             '/api/caixa/sangria':      api_sangria_caixa,
+            '/api/caixa/sangria-aviso': lambda d: _incrementar_sangria_aviso(),
             '/api/caixa/suprimento':   api_suprimento_caixa,
             '/api/login':              api_login,
             '/api/usuarios':           api_cadastrar_usuario,

@@ -5915,7 +5915,7 @@ async function loadHistoricoXML(){
 }
 
 // ── ALERTA SANGRIA ──
-var _sangriaUltimoAlerta=0,_sangriaAvisos=0,_sangriaBloqueado=false;
+var _sangriaUltimoAlerta=0,_sangriaBloqueado=false;
 async function _verificarSangria(){
   if(!configAtual||configAtual.sangria_alerta_ativo==='0') return;
   var limite=parseFloat(configAtual.sangria_limite_dinheiro||500);
@@ -5925,11 +5925,13 @@ async function _verificarSangria(){
     if(!cxRes||!cxRes.aberto||!cxRes.caixa) return;
     var cx=cxRes.caixa;
     var saldoDin=parseFloat(cx.saldo_dinheiro||0);
+    var _sangriaAvisos=cx.sangria_avisos||0;
     if(saldoDin>=limite){
       var agora=Date.now();
       var intervalo=_sangriaBloqueado?15000:60000;
       if(agora-_sangriaUltimoAlerta>=intervalo){
         _sangriaUltimoAlerta=agora;
+        await api('/caixa/sangria-aviso','POST',{});
         _sangriaAvisos++;
         var maxAvisos=3;
         var bloqueando=_sangriaAvisos>=maxAvisos;
@@ -5957,7 +5959,6 @@ async function _verificarSangria(){
       _sangriaUltimoAlerta=0;
       if(_sangriaBloqueado){
         _sangriaBloqueado=false;
-        _sangriaAvisos=0;
         var btn=document.getElementById('confirm-btn');
         if(btn){btn.disabled=false;btn.textContent='Confirmar venda'}
         toast('✅ Sangria realizada — caixa desbloqueado!');
