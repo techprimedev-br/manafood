@@ -2653,12 +2653,36 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         </div>
 
         <!-- FORMAS DE PAGAMENTO -->
-        <div class="card" style="width:300px">
+        <div class="card" style="max-width:620px">
           <div class="card-title">💳 Formas de Pagamento</div>
-          <div id="cfg-formas-lista" style="margin-bottom:8px"></div>
-          <div style="display:flex;gap:6px">
-            <input id="cfg-forma-nova" placeholder="Ex: Vale Refeição" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
-            <button onclick="adicionarFormaPagamento()" style="padding:6px 12px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">+</button>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <!-- Formas extras -->
+            <div style="flex:1;min-width:200px">
+              <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Formas extras</div>
+              <div id="cfg-formas-lista" style="margin-bottom:8px"></div>
+              <div style="display:flex;gap:6px">
+                <input id="cfg-forma-nova" placeholder="Ex: Vale Refeição" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                <button onclick="adicionarFormaPagamento()" style="padding:6px 12px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">+</button>
+              </div>
+            </div>
+            <!-- Bandeiras Crédito -->
+            <div style="flex:1;min-width:200px">
+              <div style="font-size:12px;font-weight:700;color:#2563eb;margin-bottom:6px">💳 Bandeiras Crédito</div>
+              <div id="cfg-bandeiras-cred" style="margin-bottom:8px"></div>
+              <div style="display:flex;gap:6px">
+                <input id="cfg-band-cred-nova" placeholder="Ex: Visa" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                <button onclick="addBandeira('credito')" style="padding:6px 12px;border-radius:7px;border:none;background:#2563eb;color:#fff;font-size:12px;font-weight:700;cursor:pointer">+</button>
+              </div>
+            </div>
+            <!-- Bandeiras Débito -->
+            <div style="flex:1;min-width:200px">
+              <div style="font-size:12px;font-weight:700;color:#0891b2;margin-bottom:6px">💳 Bandeiras Débito</div>
+              <div id="cfg-bandeiras-deb" style="margin-bottom:8px"></div>
+              <div style="display:flex;gap:6px">
+                <input id="cfg-band-deb-nova" placeholder="Ex: Visa Electron" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                <button onclick="addBandeira('debito')" style="padding:6px 12px;border-radius:7px;border:none;background:#0891b2;color:#fff;font-size:12px;font-weight:700;cursor:pointer">+</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3446,7 +3470,7 @@ function selectPay(t){
   document.getElementById('pix-info').style.display      =t==='pix'?'block':'none';
   document.getElementById('crediario-info').style.display=t==='crediario'?'block':'none';
   var cartaoInfo=document.getElementById('cartao-info');
-  if(cartaoInfo){cartaoInfo.style.display=(t==='cartao_credito'||t==='cartao_debito')?'block':'none';if(t!=='cartao_credito'&&t!=='cartao_debito'){document.getElementById('cartao-bandeira').value='';document.getElementById('cartao-nsu').value=''}}
+  if(cartaoInfo){cartaoInfo.style.display=(t==='cartao_credito'||t==='cartao_debito')?'block':'none';if(t==='cartao_credito'||t==='cartao_debito'){_atualizarBandeirasSelect(t)}else{document.getElementById('cartao-bandeira').value='';document.getElementById('cartao-nsu').value=''}}
   var trocoBox=document.getElementById('troco-box');
   if(trocoBox){trocoBox.style.display=t==='dinheiro'?'block':'none';document.getElementById('troco-recebido').value='';document.getElementById('troco-resultado').textContent=''}
   if(t==='crediario'&&!document.getElementById('cre-venc').value){
@@ -5935,6 +5959,41 @@ function renderFormasPDV(){
     var slug=f.toLowerCase().replace(/[^a-z0-9]/g,'_');
     return '<button class="pay-btn" id="pay-'+slug+'" onclick="selectPay(\''+slug+'\')">'+f+'</button>';
   }).join('');
+}
+
+// ── BANDEIRAS DE CARTÃO ──
+var _bandeirasCred=[],_bandeirasDeb=[];
+function loadBandeiras(){
+  var cfg=configAtual;
+  try{_bandeirasCred=JSON.parse(cfg.bandeiras_credito||'[]')}catch(e){_bandeirasCred=['Visa','Mastercard','Elo']}
+  try{_bandeirasDeb=JSON.parse(cfg.bandeiras_debito||'[]')}catch(e){_bandeirasDeb=['Visa Electron','Maestro']}
+  renderBandeirasConfig();
+}
+function renderBandeirasConfig(){
+  var elC=document.getElementById('cfg-bandeiras-cred');
+  var elD=document.getElementById('cfg-bandeiras-deb');
+  if(elC) elC.innerHTML=_bandeirasCred.map(function(b,i){return '<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px">'+b+'</span><button onclick="removeBandeira(\'credito\','+i+')" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></div>'}).join('')||'<div style="font-size:11px;color:var(--text3)">Nenhuma</div>';
+  if(elD) elD.innerHTML=_bandeirasDeb.map(function(b,i){return '<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px">'+b+'</span><button onclick="removeBandeira(\'debito\','+i+')" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></div>'}).join('')||'<div style="font-size:11px;color:var(--text3)">Nenhuma</div>';
+}
+function addBandeira(tipo){
+  var inp=document.getElementById(tipo==='credito'?'cfg-band-cred-nova':'cfg-band-deb-nova');
+  var nome=inp.value.trim();if(!nome)return;
+  if(tipo==='credito'){if(!_bandeirasCred.includes(nome))_bandeirasCred.push(nome)}
+  else{if(!_bandeirasDeb.includes(nome))_bandeirasDeb.push(nome)}
+  inp.value='';salvarBandeiras();
+}
+function removeBandeira(tipo,i){
+  if(tipo==='credito')_bandeirasCred.splice(i,1);else _bandeirasDeb.splice(i,1);
+  salvarBandeiras();
+}
+async function salvarBandeiras(){
+  await api('/config','POST',{bandeiras_credito:JSON.stringify(_bandeirasCred),bandeiras_debito:JSON.stringify(_bandeirasDeb)});
+  renderBandeirasConfig();
+}
+function _atualizarBandeirasSelect(tipo){
+  var sel=document.getElementById('cartao-bandeira');if(!sel)return;
+  var lista=tipo==='cartao_credito'?_bandeirasCred:_bandeirasDeb;
+  sel.innerHTML='<option value="">Bandeira</option>'+lista.map(function(b){return '<option value="'+b+'">'+b+'</option>'}).join('');
 }
 
 function _togglePrintConfig(){
@@ -8456,6 +8515,7 @@ async function loadConfig(){
   aplicarConfigPDV(data);
   loadFidelidadeConfig();
   loadFormasPagamento();
+  loadBandeiras();
 }
 
 // ── FIDELIDADE CONFIG ────────────────────────────────────────────────────────

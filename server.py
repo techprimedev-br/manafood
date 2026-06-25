@@ -2188,6 +2188,8 @@ DEFAULTS_CONFIG = {
     'print_balcao_nome':  '',
     'print_cozinha_nome': '',
     'formas_pagamento_extras': '',
+    'bandeiras_credito': '["Visa","Mastercard","Elo","Hipercard","Amex"]',
+    'bandeiras_debito': '["Visa Electron","Maestro","Elo Débito","Mastercard Débito"]',
 }
 
 # ─── USUÁRIOS & LOG ──────────────────────────────────────────────────────────
