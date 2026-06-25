@@ -5915,7 +5915,7 @@ async function loadHistoricoXML(){
 }
 
 // ── ALERTA SANGRIA ──
-var _sangriaAlertado=false,_sangriaAvisos=0,_sangriaBloqueado=false;
+var _sangriaUltimoAlerta=0,_sangriaAvisos=0,_sangriaBloqueado=false;
 async function _verificarSangria(){
   if(!configAtual||configAtual.sangria_alerta_ativo==='0') return;
   var limite=parseFloat(configAtual.sangria_limite_dinheiro||500);
@@ -5926,8 +5926,10 @@ async function _verificarSangria(){
     var cx=cxRes.caixa;
     var saldoDin=parseFloat(cx.saldo_dinheiro||0);
     if(saldoDin>=limite){
-      if(!_sangriaAlertado){
-        _sangriaAlertado=true;
+      var agora=Date.now();
+      var intervalo=_sangriaBloqueado?15000:60000;
+      if(agora-_sangriaUltimoAlerta>=intervalo){
+        _sangriaUltimoAlerta=agora;
         _sangriaAvisos++;
         var maxAvisos=3;
         var bloqueando=_sangriaAvisos>=maxAvisos;
@@ -5952,7 +5954,7 @@ async function _verificarSangria(){
         document.body.appendChild(modal);
       }
     }else{
-      _sangriaAlertado=false;
+      _sangriaUltimoAlerta=0;
       if(_sangriaBloqueado){
         _sangriaBloqueado=false;
         _sangriaAvisos=0;
