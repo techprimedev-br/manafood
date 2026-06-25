@@ -3196,9 +3196,10 @@ async function loadProdutos(){
 }
 
 function imgTag(p,size=40){
-  if(p.imagem) return `<img src="${API}/produtos/imagem/${p.id}" class="prod-img" alt="${p.nome}" style="width:${size}px;height:${size}px" onerror="this.style.display='none'">`;
   const emojis={'Lanches':'🍔','Bebidas':'🥤','Porções':'🍟','Frituras':'🥐','Sobremesas':'🍰'};
-  return `<div class="prod-img-placeholder" style="width:${size}px;height:${size}px">${emojis[p.categoria]||'🍽️'}</div>`;
+  const emoji=emojis[p.categoria]||'🍽️';
+  if(p.imagem) return `<img src="${API}/produtos/imagem/${p.id}" class="prod-img" alt="${p.nome}" style="width:${size}px;height:${size}px" onerror="this.outerHTML='<div class=\\'prod-img-placeholder\\' style=\\'width:${size}px;height:${size}px\\'>${emoji}</div>'">`;
+  return `<div class="prod-img-placeholder" style="width:${size}px;height:${size}px">${emoji}</div>`;
 }
 
 function renderProdutos(lista){
