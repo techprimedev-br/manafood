@@ -1217,6 +1217,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
               </button>
               <div></div>
             </div>
+            <div class="pay-grid" id="formas-extras-pdv"></div>
             <!-- Troco (dinheiro) -->
             <div id="troco-box" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:6px">
               <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:6px">💵 Calcular troco</div>
@@ -1224,6 +1225,27 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
                 <label style="font-size:12px;color:var(--text2);white-space:nowrap">Recebido R$</label>
                 <input id="troco-recebido" type="number" step="0.01" min="0" placeholder="0,00" oninput="_calcTroco()" style="flex:1;padding:6px 10px;border:1px solid #bbf7d0;border-radius:7px;font-size:14px;font-weight:700">
                 <div id="troco-resultado" style="font-size:16px;font-weight:800;color:#16a34a;min-width:90px;text-align:right"></div>
+              </div>
+            </div>
+            <!-- Dados do cartão (crédito/débito) -->
+            <div id="cartao-info" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin-bottom:6px">
+              <div style="font-size:12px;font-weight:700;color:#1e40af;margin-bottom:6px">💳 Dados do cartão</div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <select id="cartao-bandeira" style="padding:6px 10px;border:1px solid #bfdbfe;border-radius:7px;font-size:12px;flex:1">
+                  <option value="">Bandeira</option>
+                  <option value="visa">Visa</option>
+                  <option value="mastercard">Mastercard</option>
+                  <option value="elo">Elo</option>
+                  <option value="hipercard">Hipercard</option>
+                  <option value="amex">American Express</option>
+                  <option value="visa_electron">Visa Electron</option>
+                  <option value="maestro">Maestro</option>
+                  <option value="alelo">Alelo</option>
+                  <option value="sodexo">Sodexo</option>
+                  <option value="ticket">Ticket</option>
+                  <option value="outra">Outra</option>
+                </select>
+                <input id="cartao-nsu" placeholder="NSU" style="width:120px;padding:6px 10px;border:1px solid #bfdbfe;border-radius:7px;font-size:12px">
               </div>
             </div>
             <!-- Cashback disponível -->
@@ -2630,6 +2652,16 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
           </div>
         </div>
 
+        <!-- FORMAS DE PAGAMENTO -->
+        <div class="card" style="width:300px">
+          <div class="card-title">💳 Formas de Pagamento</div>
+          <div id="cfg-formas-lista" style="margin-bottom:8px"></div>
+          <div style="display:flex;gap:6px">
+            <input id="cfg-forma-nova" placeholder="Ex: Vale Refeição" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+            <button onclick="adicionarFormaPagamento()" style="padding:6px 12px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">+</button>
+          </div>
+        </div>
+
         <!-- IMPRESSÃO -->
         <div class="card" style="width:300px">
           <div class="card-title">🖨️ Impressão</div>
@@ -3413,6 +3445,8 @@ function selectPay(t){
   Object.entries(PAY_IDS).forEach(([k,id])=>{const b=document.getElementById(id);if(b)b.className='pay-btn'+(k===t?' '+PAY_CLS[k]:'')});
   document.getElementById('pix-info').style.display      =t==='pix'?'block':'none';
   document.getElementById('crediario-info').style.display=t==='crediario'?'block':'none';
+  var cartaoInfo=document.getElementById('cartao-info');
+  if(cartaoInfo){cartaoInfo.style.display=(t==='cartao_credito'||t==='cartao_debito')?'block':'none';if(t!=='cartao_credito'&&t!=='cartao_debito'){document.getElementById('cartao-bandeira').value='';document.getElementById('cartao-nsu').value=''}}
   var trocoBox=document.getElementById('troco-box');
   if(trocoBox){trocoBox.style.display=t==='dinheiro'?'block':'none';document.getElementById('troco-recebido').value='';document.getElementById('troco-resultado').textContent=''}
   if(t==='crediario'&&!document.getElementById('cre-venc').value){
@@ -3486,7 +3520,9 @@ async function finalizarVenda(){
     pagsMixFinal = pagsMix.filter(p=>p.valor>0);
   }
   const obsGeral=(document.getElementById('obs-geral')||{}).value||'';
-  const payload=Object.assign({itens,total,tipo_pagamento:tipoPagFinal,pagamentos_mix:pagsMixFinal,
+  const cartaoBandeira=(document.getElementById('cartao-bandeira')||{}).value||'';
+  const cartaoNsu=(document.getElementById('cartao-nsu')||{}).value||'';
+  const payload=Object.assign({itens,total,tipo_pagamento:tipoPagFinal,pagamentos_mix:pagsMixFinal,cartao_bandeira:cartaoBandeira,cartao_nsu:cartaoNsu,
     cliente_id,cliente:cliente_nm,observacao:obsGeral,
     desconto:window._descontoVenda||0,
     gorjeta:window._gorjeta||0,
@@ -3540,6 +3576,8 @@ async function finalizarVenda(){
     document.getElementById('cre-cliente-nome').disabled=false;
     document.getElementById('cre-venc').value='';
     var _obsG=document.getElementById('obs-geral');if(_obsG)_obsG.value='';
+    var _cb=document.getElementById('cartao-bandeira');if(_cb)_cb.value='';
+    var _cn=document.getElementById('cartao-nsu');if(_cn)_cn.value='';
     selectPay('dinheiro');
     // abre modal de impressão
     abrirModalImpressao(res.venda_id, payload, total);
@@ -5856,6 +5894,49 @@ async function publicarCardapio(){
   }
 }
 
+// ── FORMAS DE PAGAMENTO EXTRAS ──
+var _formasExtras=[];
+function loadFormasPagamento(){
+  var cfg=configAtual;
+  try{_formasExtras=JSON.parse(cfg.formas_pagamento_extras||'[]')}catch(e){_formasExtras=[]}
+  renderFormasConfig();
+  renderFormasPDV();
+}
+function renderFormasConfig(){
+  var el=document.getElementById('cfg-formas-lista');if(!el)return;
+  if(!_formasExtras.length){el.innerHTML='<div style="font-size:11px;color:var(--text3)">Nenhuma forma extra</div>';return}
+  el.innerHTML=_formasExtras.map(function(f,i){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px">'+f+'</span><button onclick="removerFormaPagamento('+i+')" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:14px">✕</button></div>';
+  }).join('');
+}
+function adicionarFormaPagamento(){
+  var inp=document.getElementById('cfg-forma-nova');
+  var nome=inp.value.trim();
+  if(!nome){toast('Digite o nome','warn');return}
+  if(_formasExtras.includes(nome)){toast('Já existe','warn');return}
+  _formasExtras.push(nome);
+  inp.value='';
+  salvarFormasPagamento();
+}
+function removerFormaPagamento(i){
+  _formasExtras.splice(i,1);
+  salvarFormasPagamento();
+}
+async function salvarFormasPagamento(){
+  await api('/config','POST',{formas_pagamento_extras:JSON.stringify(_formasExtras)});
+  renderFormasConfig();
+  renderFormasPDV();
+}
+function renderFormasPDV(){
+  var container=document.getElementById('formas-extras-pdv');
+  if(!container)return;
+  if(!_formasExtras.length){container.innerHTML='';return}
+  container.innerHTML=_formasExtras.map(function(f){
+    var slug=f.toLowerCase().replace(/[^a-z0-9]/g,'_');
+    return '<button class="pay-btn" id="pay-'+slug+'" onclick="selectPay(\''+slug+'\')">'+f+'</button>';
+  }).join('');
+}
+
 function _togglePrintConfig(){
   var m=document.getElementById('cfg-print-metodo').value;
   document.getElementById('print-config-escpos').style.display=m==='escpos'?'block':'none';
@@ -7150,6 +7231,8 @@ async function novaVenda(){
   document.getElementById('cliente-nome-input') && (document.getElementById('cliente-nome-input').value='');
   resetAtend();
   var _obsG2=document.getElementById('obs-geral');if(_obsG2)_obsG2.value='';
+  var _cb2=document.getElementById('cartao-bandeira');if(_cb2)_cb2.value='';
+  var _cn2=document.getElementById('cartao-nsu');if(_cn2)_cn2.value='';
   renderCart();
   selectPay('dinheiro');
   // No mobile volta para o cardápio
@@ -8372,6 +8455,7 @@ async function loadConfig(){
   atualizarPreviewPix();
   aplicarConfigPDV(data);
   loadFidelidadeConfig();
+  loadFormasPagamento();
 }
 
 // ── FIDELIDADE CONFIG ────────────────────────────────────────────────────────

@@ -171,6 +171,8 @@ def init_database():
         "ALTER TABLE vendas ADD COLUMN offline_id TEXT DEFAULT ''",
         "ALTER TABLE produtos ADD COLUMN descricao TEXT DEFAULT ''",
         "ALTER TABLE produtos ADD COLUMN emoji TEXT DEFAULT ''",
+        "ALTER TABLE vendas ADD COLUMN cartao_bandeira TEXT DEFAULT ''",
+        "ALTER TABLE vendas ADD COLUMN cartao_nsu TEXT DEFAULT ''",
         "CREATE TABLE IF NOT EXISTS ingredientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, unidade TEXT DEFAULT 'un', quantidade REAL DEFAULT 0, custo REAL DEFAULT 0, estoque_minimo REAL DEFAULT 5, ativo INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
         "CREATE TABLE IF NOT EXISTS produto_ingredientes (id INTEGER PRIMARY KEY AUTOINCREMENT, produto_id INTEGER NOT NULL, ingrediente_id INTEGER NOT NULL, quantidade_usada REAL NOT NULL DEFAULT 1, FOREIGN KEY(produto_id) REFERENCES produtos(id), FOREIGN KEY(ingrediente_id) REFERENCES ingredientes(id))",
         "CREATE TABLE IF NOT EXISTS promocoes (id INTEGER PRIMARY KEY AUTOINCREMENT, produto_id INTEGER NOT NULL, tipo TEXT DEFAULT 'percentual', valor REAL NOT NULL, preco_promo REAL DEFAULT 0, data_inicio DATE NOT NULL, data_fim DATE NOT NULL, ativo INTEGER DEFAULT 1, descricao TEXT DEFAULT '', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(produto_id) REFERENCES produtos(id))",
@@ -518,6 +520,11 @@ def api_registrar_venda(data):
              'aberta' if tipo_atend in ('mesa','local') else 'fechada',
              offline_id))
         venda_id=c.lastrowid
+        # Cartão bandeira e NSU
+        cartao_b = data.get('cartao_bandeira','')
+        cartao_n = data.get('cartao_nsu','')
+        if cartao_b or cartao_n:
+            c.execute("UPDATE vendas SET cartao_bandeira=?, cartao_nsu=? WHERE id=?", (cartao_b, cartao_n, venda_id))
         # Registra/atualiza mesa ativa
         if tipo_atend in ('mesa','local') and (mesa or nome_cli_mesa):
             mesa_key = mesa or nome_cli_mesa
@@ -2180,6 +2187,7 @@ DEFAULTS_CONFIG = {
     'print_cozinha_ip':   '',
     'print_balcao_nome':  '',
     'print_cozinha_nome': '',
+    'formas_pagamento_extras': '',
 }
 
 # ─── USUÁRIOS & LOG ──────────────────────────────────────────────────────────
@@ -2627,6 +2635,14 @@ def api_get_config():
     result.update(rows)
     return result
 
+def api_formas_pagamento():
+    cfg = api_get_config()
+    extras = cfg.get('formas_pagamento_extras','')
+    try:
+        extras_list = json.loads(extras) if extras else []
+    except: extras_list = []
+    return {"padrao":["dinheiro","pix","cartao_credito","cartao_debito","crediario"],"extras":extras_list}
+
 def api_salvar_config(data):
     conn = get_connection(); c = conn.cursor()
     for chave, valor in data.items():
@@ -2721,6 +2737,8 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             self.send_json(api_listar_promocoes()); return
         if path == '/api/promocoes/ativas':
             self.send_json(api_promocoes_ativas()); return
+        if path == '/api/formas-pagamento':
+            self.send_json(api_formas_pagamento()); return
         if path == '/api/cashback/config':
             self.send_json(api_get_cashback_config()); return
         if path == '/api/empresa':
