@@ -5816,7 +5816,7 @@ async function checkForUpdate(){
         var cl=d.changelog?d.changelog.split('\n').slice(0,8).join('<br>'):'';
         document.getElementById('update-msg').innerHTML='🚀 Nova versão '+d.versao_remota+' disponível! <span onclick="document.getElementById(\'update-changelog\').style.display=document.getElementById(\'update-changelog\').style.display===\'block\'?\'none\':\'block\'" style="cursor:pointer;text-decoration:underline;margin-left:8px">Ver novidades</span>';
         var chDiv=document.getElementById('update-changelog');
-        if(chDiv&&d.changelog) chDiv.textContent=d.changelog;
+        if(chDiv&&d.changelog){var lines=d.changelog.split('\n'),first=[];for(var i=0;i<lines.length;i++){if(i>0&&lines[i].startsWith('## '))break;first.push(lines[i])}chDiv.textContent=first.join('\n')}
       }
     }
   }catch(e){}
