@@ -2190,6 +2190,10 @@ DEFAULTS_CONFIG = {
     'formas_pagamento_extras': '',
     'bandeiras_credito': '["Visa","Mastercard","Elo","Hipercard","Amex"]',
     'bandeiras_debito': '["Visa Electron","Maestro","Elo Débito","Mastercard Débito"]',
+    'sangria_limite_dinheiro': '500',
+    'sangria_limite_cheque': '100',
+    'sangria_tempo_minutos': '0',
+    'sangria_alerta_ativo': '1',
 }
 
 # ─── USUÁRIOS & LOG ──────────────────────────────────────────────────────────
@@ -2400,6 +2404,11 @@ def api_status_caixa(params=None):
         # canceladas separadas (para mostrar no fechamento)
         c.execute("SELECT COUNT(*) AS qtd, COALESCE(SUM(total),0) AS total FROM vendas WHERE caixa_id=? AND cancelada=1", (caixa_id,))
         vc = c.fetchone(); caixa['qtd_canceladas'] = vc['qtd']; caixa['total_canceladas'] = vc['total']
+        # Calcula saldo em dinheiro
+        vendas_din = next((v for v in caixa['vendas_por_pag'] if v['tipo_pagamento']=='dinheiro'), None)
+        suprimentos = sum(m['valor'] for m in caixa['movimentos'] if m['tipo']=='suprimento')
+        sangrias = sum(m['valor'] for m in caixa['movimentos'] if m['tipo']=='sangria')
+        caixa['saldo_dinheiro'] = (caixa.get('troco_abertura',0) or 0) + (vendas_din['total'] if vendas_din else 0) + suprimentos - sangrias
         conn.close(); return {'aberto': True, 'caixa': caixa, 'usuario_caixa': caixa.get('usuario_nome','')}
     conn.close(); return {'aberto': False, 'caixa': None}
 
