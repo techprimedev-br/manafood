@@ -2573,6 +2573,15 @@ def api_relatorio(params):
                   GROUP BY tipo_pagamento ORDER BY total DESC""", args_v)
     por_pagamento = [dict(r) for r in c.fetchall()]
 
+    # ── VENDAS POR BANDEIRA DE CARTÃO ─────────────────────────────────────────
+    c.execute(f"""SELECT tipo_pagamento, cartao_bandeira,
+                         COUNT(*) AS qtd,
+                         COALESCE(SUM(total),0) AS total
+                  FROM vendas v WHERE 1=1{where_v}
+                    AND cartao_bandeira IS NOT NULL AND cartao_bandeira!=''
+                  GROUP BY tipo_pagamento, cartao_bandeira ORDER BY total DESC""", args_v)
+    por_bandeira = [dict(r) for r in c.fetchall()]
+
     # ── PRODUTOS MAIS VENDIDOS ─────────────────────────────────────────────────
     c.execute(f"""SELECT p.nome, SUM(iv.quantidade) AS qtd_vendida,
                          SUM(iv.subtotal) AS receita
@@ -2640,6 +2649,7 @@ def api_relatorio(params):
         'geral':             geral,
         'por_dia':           por_dia,
         'por_pagamento':     por_pagamento,
+        'por_bandeira':      por_bandeira,
         'top_produtos':      top_produtos,
         'contas_resumo':     contas_resumo,
         'proximos_venc':     proximos_venc,

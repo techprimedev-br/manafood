@@ -2211,6 +2211,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         <div class="rel-kpi-grid" id="rel-kpi-pag" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div>
         <div class="rel-section-title" style="margin-top:6px">📊 Distribuição por forma de pagamento</div>
         <div class="card" style="padding:16px;max-width:600px" id="rel-pag-bars"></div>
+        <div class="card" style="padding:16px;max-width:600px;margin-top:12px;display:none" id="rel-bandeiras"></div>
       </div>
 
       <!-- ABA CONTAS -->
@@ -8902,6 +8903,22 @@ async function loadRelatorio(){
       </div>`;
     }).join('');
   } else bars.innerHTML='<div class="empty">Sem dados no período</div>';
+
+  // ── DETALHAMENTO POR BANDEIRA ─────────────────────────────────────────────
+  var bandEl=document.getElementById('rel-bandeiras');
+  if(bandEl&&d.por_bandeira&&d.por_bandeira.length){
+    var PAG_TIPO={'cartao_credito':'Crédito','cartao_debito':'Débito'};
+    bandEl.style.display='block';
+    bandEl.innerHTML='<div style="font-size:14px;font-weight:700;margin-bottom:10px">💳 Detalhamento por bandeira</div>'+
+      d.por_bandeira.map(function(r){
+        return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">'+
+          '<span style="font-size:12px;color:var(--text2);min-width:70px">'+(PAG_TIPO[r.tipo_pagamento]||r.tipo_pagamento)+'</span>'+
+          '<span style="font-size:13px;font-weight:700;flex:1">'+r.cartao_bandeira+'</span>'+
+          '<span style="font-size:12px;color:var(--text2)">'+r.qtd+' venda'+(r.qtd!==1?'s':'')+'</span>'+
+          '<span style="font-size:13px;font-weight:700;color:var(--accent);min-width:90px;text-align:right">'+fmt(r.total)+'</span>'+
+          '</div>';
+      }).join('');
+  }else if(bandEl){bandEl.style.display='none'}
 
   // ── CONTAS ────────────────────────────────────────────────────────────────
   const cr = d.contas_resumo;
