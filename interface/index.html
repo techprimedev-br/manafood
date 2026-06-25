@@ -288,10 +288,10 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 .panel-title,.logo h1,.modal-title,.metric-value{font-family:'Cinzel',serif}
-.app{display:flex;height:100vh}
+.app{display:flex;height:100vh;overflow:hidden}
 
 /* ── SIDEBAR ── */
-.sidebar{width:192px;min-width:192px;background:var(--sidebar);border-right:none;display:flex;flex-direction:column;padding:14px 10px 0;gap:2px;overflow:hidden;position:sticky;top:0;height:100vh}
+.sidebar{width:192px;min-width:192px;background:var(--sidebar);border-right:none;display:flex;flex-direction:column;padding:14px 10px 0;gap:2px;overflow:hidden;height:100vh}
 .logo{padding:6px 10px 16px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px}
 .logo h1{font-size:14px;font-weight:700;color:#fff}
 .logo span{font-size:11px;color:rgba(255,255,255,.4);display:block;margin-top:2px}
