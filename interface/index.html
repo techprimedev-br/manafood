@@ -3424,9 +3424,9 @@ function _calcTroco(){
   var desc=window._descontoVenda||0;var cupDesc=window._cupomDesconto||0;var gorj=window._gorjeta||0;
   var total=Math.max(0,sub+taxa-desc-cupDesc+gorj);
   var el=document.getElementById('troco-resultado');
-  if(recebido<=0||recebido<total){el.textContent='';return}
-  var troco=recebido-total;
-  el.textContent='Troco: '+fmt(troco);
+  if(recebido<=0){el.textContent='';return}
+  if(recebido<total){el.innerHTML='<span style="color:#dc2626">Falta: '+fmt(total-recebido)+'</span>';return}
+  el.innerHTML='<span style="color:#16a34a">Troco: '+fmt(recebido-total)+'</span>';
 }
 
 async function finalizarVenda(){
