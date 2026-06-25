@@ -3606,6 +3606,9 @@ async function finalizarVenda(){
   const obsGeral=(document.getElementById('obs-geral')||{}).value||'';
   const cartaoBandeira=(document.getElementById('cartao-bandeira')||{}).value||'';
   const cartaoNsu=(document.getElementById('cartao-nsu')||{}).value||'';
+  if((tipoPagFinal==='cartao_credito'||tipoPagFinal==='cartao_debito')&&!cartaoBandeira){
+    toast('Selecione a bandeira do cartão','err');btn.disabled=false;btn.textContent='Confirmar venda';return;
+  }
   const payload=Object.assign({itens,total,tipo_pagamento:tipoPagFinal,pagamentos_mix:pagsMixFinal,cartao_bandeira:cartaoBandeira,cartao_nsu:cartaoNsu,
     cliente_id,cliente:cliente_nm,observacao:obsGeral,
     desconto:window._descontoVenda||0,
