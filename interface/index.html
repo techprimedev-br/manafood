@@ -1039,7 +1039,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 <div class="app">
   <div class="sidebar" id="sidebar">
     <button class="sidebar-toggle-btn" id="sidebar-toggle" onclick="toggleSidebarMini()" title="Minimizar menu">‹</button>
-    <div class="logo"><h1>🍔 Maná Hambugueria</h1><span style="color:var(--text2)">PDV v4.0</span></div>
+    <div class="logo"><h1>🍔 Maná Hambugueria</h1><span style="color:var(--text2)" id="sidebar-versao">PDV</span></div>
     <div class="sidebar-nav-scroll" id="sidebar-nav-scroll">
     <button class="nav-btn active" onclick="showPanel('pdv',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>PDV
@@ -8320,7 +8320,7 @@ let configAtual = {};
 async function loadConfig(){
   const data = await api('/config'); if(!data) return;
   configAtual = data;
-  var _va=document.getElementById('cfg-versao-atual');if(_va){api('/check-update').then(function(r){if(r)_va.textContent=r.versao_local||'—'})}
+  var _va=document.getElementById('cfg-versao-atual');if(_va){api('/check-update').then(function(r){if(r){_va.textContent=r.versao_local||'—';var _sv=document.getElementById('sidebar-versao');if(_sv)_sv.textContent='PDV v'+r.versao_local}})}
   document.getElementById('cfg-pix-chave').value     = data.pix_chave||'';
   document.getElementById('cfg-pix-tipo').value      = data.pix_tipo||'email';
   document.getElementById('cfg-pix-recebedor').value = data.pix_recebedor||'';
