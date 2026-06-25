@@ -1359,6 +1359,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
             <div id="pdv-caixa-aviso" style="display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;font-size:12px;font-weight:700;color:#991b1b;margin-bottom:8px;display:flex;align-items:center;gap:7px">
               🔒 Caixa fechado — <a onclick="showPanel('caixa',document.querySelector('.nav-btn[onclick*=caixa]'))" style="cursor:pointer;text-decoration:underline;color:#991b1b">Abrir caixa agora</a>
             </div>
+            <div style="margin-bottom:8px">
+              <input id="obs-geral" placeholder="📝 Observação do pedido (opcional)" style="width:100%;padding:8px 12px;border:1px dashed var(--border2);border-radius:8px;font-size:12px;color:var(--text);outline:none">
+            </div>
             <button class="confirm-btn" id="confirm-btn" onclick="finalizarVenda()">Confirmar venda</button>
           </div>
         </div>
@@ -3482,8 +3485,9 @@ async function finalizarVenda(){
     tipoPagFinal = 'misto';
     pagsMixFinal = pagsMix.filter(p=>p.valor>0);
   }
+  const obsGeral=(document.getElementById('obs-geral')||{}).value||'';
   const payload=Object.assign({itens,total,tipo_pagamento:tipoPagFinal,pagamentos_mix:pagsMixFinal,
-    cliente_id,cliente:cliente_nm,
+    cliente_id,cliente:cliente_nm,observacao:obsGeral,
     desconto:window._descontoVenda||0,
     gorjeta:window._gorjeta||0,
     cupom:window._cupomCodigo||'',
@@ -3535,6 +3539,7 @@ async function finalizarVenda(){
     document.getElementById('cre-cliente-nome').value='';
     document.getElementById('cre-cliente-nome').disabled=false;
     document.getElementById('cre-venc').value='';
+    var _obsG=document.getElementById('obs-geral');if(_obsG)_obsG.value='';
     selectPay('dinheiro');
     // abre modal de impressão
     abrirModalImpressao(res.venda_id, payload, total);
@@ -7144,6 +7149,7 @@ async function novaVenda(){
   document.getElementById('cliente-sel') && (document.getElementById('cliente-sel').value='');
   document.getElementById('cliente-nome-input') && (document.getElementById('cliente-nome-input').value='');
   resetAtend();
+  var _obsG2=document.getElementById('obs-geral');if(_obsG2)_obsG2.value='';
   renderCart();
   selectPay('dinheiro');
   // No mobile volta para o cardápio
