@@ -156,6 +156,7 @@
   .mob-topbar{position:fixed;top:0;left:0;right:0;will-change:transform;-webkit-transform:translateZ(0);transform:translateZ(0)}
 
   /* Main ocupa tela toda — scroll nativo (sem container aninhado) */
+  html,body{height:auto;overflow:auto}
   .app{flex-direction:column;height:auto;min-height:100vh;overflow-x:hidden}
   .main{width:100%;padding-top:56px;flex:1 1 auto;min-height:0;overflow-y:visible!important;overflow-x:hidden;-webkit-overflow-scrolling:touch}
   .panel{padding:14px 12px}
@@ -286,7 +287,8 @@
 .desc-tipo-btn.ativo{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
 .perm-gerente{display:none}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+html,body{margin:0;padding:0;height:100vh;overflow:hidden}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text)}
 .panel-title,.logo h1,.modal-title,.metric-value{font-family:'Cinzel',serif}
 .app{display:flex;height:100vh;overflow:hidden}
 
