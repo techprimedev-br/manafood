@@ -3388,7 +3388,7 @@ function selectPay(t){
   document.getElementById('pix-info').style.display      =t==='pix'?'block':'none';
   document.getElementById('crediario-info').style.display=t==='crediario'?'block':'none';
   var trocoBox=document.getElementById('troco-box');
-  if(trocoBox){trocoBox.style.display=t==='dinheiro'?'block':'none';if(t!=='dinheiro'){document.getElementById('troco-recebido').value='';document.getElementById('troco-resultado').textContent=''}}
+  if(trocoBox){trocoBox.style.display=t==='dinheiro'?'block':'none';document.getElementById('troco-recebido').value='';document.getElementById('troco-resultado').textContent=''}
   if(t==='crediario'&&!document.getElementById('cre-venc').value){
     const d=new Date();d.setDate(d.getDate()+30);
     document.getElementById('cre-venc').value=_localDate(d);
