@@ -170,6 +170,7 @@ def init_database():
         "ALTER TABLE vendas ADD COLUMN recuperada_em TIMESTAMP DEFAULT NULL",
         "ALTER TABLE vendas ADD COLUMN offline_id TEXT DEFAULT ''",
         "ALTER TABLE produtos ADD COLUMN descricao TEXT DEFAULT ''",
+        "ALTER TABLE produtos ADD COLUMN emoji TEXT DEFAULT ''",
         "CREATE TABLE IF NOT EXISTS ingredientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, unidade TEXT DEFAULT 'un', quantidade REAL DEFAULT 0, custo REAL DEFAULT 0, estoque_minimo REAL DEFAULT 5, ativo INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
         "CREATE TABLE IF NOT EXISTS produto_ingredientes (id INTEGER PRIMARY KEY AUTOINCREMENT, produto_id INTEGER NOT NULL, ingrediente_id INTEGER NOT NULL, quantidade_usada REAL NOT NULL DEFAULT 1, FOREIGN KEY(produto_id) REFERENCES produtos(id), FOREIGN KEY(ingrediente_id) REFERENCES ingredientes(id))",
         "CREATE TABLE IF NOT EXISTS promocoes (id INTEGER PRIMARY KEY AUTOINCREMENT, produto_id INTEGER NOT NULL, tipo TEXT DEFAULT 'percentual', valor REAL NOT NULL, preco_promo REAL DEFAULT 0, data_inicio DATE NOT NULL, data_fim DATE NOT NULL, ativo INTEGER DEFAULT 1, descricao TEXT DEFAULT '', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(produto_id) REFERENCES produtos(id))",
@@ -299,12 +300,13 @@ def api_atualizar_produto(data):
             if c.fetchone():
                 conn.close(); return {"ok":False,"erro":f"Código '{codigo}' já está em uso"}
         descricao = data.get('descricao','')
+        emoji_val = data.get('emoji','')
         if imagem is not None:
-            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,imagem=?,codigo=?,descricao=? WHERE id=?",
-                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, imagem, codigo, descricao, pid))
+            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,imagem=?,codigo=?,descricao=?,emoji=? WHERE id=?",
+                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, imagem, codigo, descricao, emoji_val, pid))
         else:
-            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,codigo=?,descricao=? WHERE id=?",
-                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, codigo, descricao, pid))
+            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,codigo=?,descricao=?,emoji=? WHERE id=?",
+                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, codigo, descricao, emoji_val, pid))
     elif 'quantidade' in data and 'custo' not in data:
         c.execute("UPDATE produtos SET quantidade=? WHERE id=?", (int(data['quantidade']), pid))
     elif 'custo' in data:

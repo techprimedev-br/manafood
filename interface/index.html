@@ -844,6 +844,15 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       </div>
 
       <div class="form-group full"><label>Descrição (aparece no cardápio)</label><input id="ep-descricao" placeholder="Ex: Nosso mais pedido!"></div>
+      <div class="form-group full">
+        <label>Emoji do produto</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span id="ep-emoji-preview" style="font-size:28px;min-width:36px;text-align:center">🍽️</span>
+          <input id="ep-emoji" placeholder="Clique num emoji abaixo" style="width:60px;font-size:20px;text-align:center;padding:4px" readonly>
+          <button onclick="document.getElementById('ep-emoji').value='';document.getElementById('ep-emoji-preview').textContent='🍽️'" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:11px;cursor:pointer">Limpar</button>
+        </div>
+        <div id="ep-emoji-grid" style="display:flex;flex-wrap:wrap;gap:2px;max-height:80px;overflow-y:auto"></div>
+      </div>
 
       <div class="form-group full">
         <label>🧂 Ingredientes do produto</label>
@@ -3195,9 +3204,10 @@ async function loadProdutos(){
   if(changed) renderProdutos();
 }
 
+var FOOD_EMOJIS=['🍔','🍟','🌭','🍕','🌮','🌯','🥪','🥐','🧀','🍗','🍖','🥩','🥓','🍳','🥚','🥞','🧇','🥯','🍞','🥨','🥖','🧈','🥗','🥘','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🍤','🍙','🍚','🥠','🥡','🍦','🍧','🍨','🍩','🍪','🎂','🍰','🧁','🥧','🍫','🍬','🍭','🍮','🍯','🥤','🧃','🧉','☕','🍵','🫖','🍶','🍺','🥛','🧋','🍹','🍷','🥃','🍸','💧','🫗','🥝','🍎','🍊','🍋','🍇','🍓','🫐','🍌','🥑','🌽','🥕','🍅'];
 function imgTag(p,size=40){
   const emojis={'Lanches':'🍔','Bebidas':'🥤','Porções':'🍟','Frituras':'🥐','Sobremesas':'🍰'};
-  const emoji=emojis[p.categoria]||'🍽️';
+  const emoji=p.emoji||emojis[p.categoria]||'🍽️';
   if(p.imagem) return `<img src="${API}/produtos/imagem/${p.id}" class="prod-img" alt="${p.nome}" style="width:${size}px;height:${size}px" onerror="this.outerHTML='<div class=\\'prod-img-placeholder\\' style=\\'width:${size}px;height:${size}px\\'>${emoji}</div>'">`;
   return `<div class="prod-img-placeholder" style="width:${size}px;height:${size}px">${emoji}</div>`;
 }
@@ -6024,9 +6034,14 @@ async function abrirEditarProduto(id){
   } else {
     prev.style.display='none'; ph.style.display='block'; rmBtn.style.display='none';
   }
-  // Descrição
+  // Descrição e emoji
   var epDesc=document.getElementById('ep-descricao');
   if(epDesc) epDesc.value=p.descricao||'';
+  var epEmoji=document.getElementById('ep-emoji');
+  var epEmojiPrev=document.getElementById('ep-emoji-preview');
+  if(epEmoji){epEmoji.value=p.emoji||'';if(epEmojiPrev)epEmojiPrev.textContent=p.emoji||'🍽️'}
+  var emojiGrid=document.getElementById('ep-emoji-grid');
+  if(emojiGrid){emojiGrid.innerHTML=FOOD_EMOJIS.map(function(e){return'<span onclick="document.getElementById(\'ep-emoji\').value=\''+e+'\';document.getElementById(\'ep-emoji-preview\').textContent=\''+e+'\'" style="font-size:22px;cursor:pointer;padding:3px;border-radius:4px;hover:background:#f0f0f0">'+e+'</span>'}).join('')}
   // Ingredientes do produto
   await _epCarregarIngs(p.id);
   document.getElementById('modal-edit-prod').classList.add('open');
@@ -6116,6 +6131,7 @@ async function salvarEdicaoProduto(){
   const markup = parseFloat(document.getElementById('ep-markup').value)||0;
   const codigo = document.getElementById('ep-codigo').value.trim();
   const descricao = (document.getElementById('ep-descricao')||{}).value||'';
+  const emojiVal = (document.getElementById('ep-emoji')||{}).value||'';
   if(!id){toast('Erro: ID do produto não encontrado','err');return}
   if(!nome||isNaN(preco)||preco<=0){toast('Informe nome e preço de venda!','err');return}
   const payload = {
@@ -6128,7 +6144,8 @@ async function salvarEdicaoProduto(){
     custo,
     markup,
     codigo,
-    descricao
+    descricao,
+    emoji: emojiVal
   };
   if(editImgBase64 !== null) payload.imagem = editImgBase64;
   const res = await api('/produtos/atualizar','POST', payload);
