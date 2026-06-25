@@ -140,7 +140,7 @@
 
   /* Sidebar vira overlay */
   .sidebar{
-    position:fixed!important;top:0;left:-100%;width:240px;height:100vh;
+    position:fixed!important;top:0;left:-100%!important;width:240px;height:100vh;
     z-index:300;transition:left .25s ease;
     box-shadow:4px 0 20px rgba(0,0,0,.4);
     overflow:hidden;overflow-y:auto;
@@ -148,7 +148,7 @@
   .mob-close-btn{display:block;position:absolute;top:10px;right:10px;background:none;border:none;color:rgba(255,255,255,.7);font-size:20px;cursor:pointer;z-index:301;padding:4px 8px;border-radius:6px}
   .mob-close-btn:hover{color:#fff;background:rgba(255,255,255,.1)}
   .sidebar-nav-scroll{max-height:calc(100vh - 140px)}
-  .sidebar.mob-open{left:0}
+  .sidebar.mob-open{left:0!important}
   .sidebar-overlay{
     display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
     z-index:299;
