@@ -156,9 +156,8 @@
   .mob-topbar{position:fixed;top:0;left:0;right:0;will-change:transform;-webkit-transform:translateZ(0);transform:translateZ(0)}
 
   /* Main ocupa tela toda — scroll nativo (sem container aninhado) */
-  html,body{height:auto;overflow:auto}
   .app{flex-direction:column;height:auto;min-height:100vh;overflow-x:hidden}
-  .main{width:100%;padding-top:56px;flex:1 1 auto;min-height:0;overflow-y:visible!important;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+  .main{width:100%;margin-left:0!important;padding-top:56px;flex:1 1 auto;min-height:0;height:auto!important;overflow-y:visible!important;overflow-x:hidden;-webkit-overflow-scrolling:touch}
   .panel{padding:14px 12px}
   .panel-title{font-size:15px;margin-bottom:14px}
 
@@ -271,7 +270,7 @@
 .user-bar{flex-shrink:0}
 .sidebar.minimized .user-info{display:none}
 .sidebar.minimized .btn-logout{padding:4px;width:32px;justify-content:center}
-.sidebar.minimized + .main{flex:1}
+.sidebar.minimized + .main{margin-left:54px}
 .sidebar-toggle-btn{
   position:absolute;top:12px;right:-12px;
   width:24px;height:24px;border-radius:50%;
@@ -287,13 +286,12 @@
 .desc-tipo-btn.ativo{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
 .perm-gerente{display:none}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{margin:0;padding:0;height:100vh;overflow:hidden}
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:0}
 .panel-title,.logo h1,.modal-title,.metric-value{font-family:'Cinzel',serif}
-.app{display:flex;height:100vh;overflow:hidden}
+.app{display:flex;min-height:100vh}
 
 /* ── SIDEBAR ── */
-.sidebar{width:192px;min-width:192px;background:var(--sidebar);border-right:none;display:flex;flex-direction:column;padding:14px 10px 0;gap:2px;overflow:hidden;height:100vh}
+.sidebar{position:fixed;top:0;left:0;width:192px;min-width:192px;height:100vh;background:var(--sidebar);border-right:none;display:flex;flex-direction:column;padding:14px 10px 0;gap:2px;overflow:hidden;z-index:100}
 .logo{padding:6px 10px 16px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px}
 .logo h1{font-size:14px;font-weight:700;color:#fff}
 .logo span{font-size:11px;color:rgba(255,255,255,.4);display:block;margin-top:2px}
@@ -306,7 +304,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .status-txt{font-size:11px;color:rgba(255,255,255,.4)}
 
 /* ── MAIN ── */
-.main{flex:1;overflow-y:auto;background:var(--bg)}
+.main{margin-left:192px;flex:1;overflow-y:auto;height:100vh;background:var(--bg)}
 .panel{display:none;padding:24px;max-width:1140px}
 .panel.active{display:block}
 .panel-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:20px;display:flex;align-items:center;gap:9px}
