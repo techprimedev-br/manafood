@@ -1,12 +1,7 @@
-__pycache__/
-*.pyc
-lanchonete/data/
+﻿lanchonete/data/
 lanchonete/imagens/
 lanchonete/backups/
-cloudflared-windows-amd64.exe
-*.db
+__pycache__/
+*.pyc
+_backup/
 .claude/
-ManaFoodAndroid/app/build/
-ManaFoodAndroid/.gradle/
-ManaFoodAndroid/.idea/
-ManaFoodAndroid/local.properties

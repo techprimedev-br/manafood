@@ -189,8 +189,21 @@ def init_database():
         "ALTER TABLE cardapio_config ADD COLUMN logo TEXT DEFAULT ''",
         "CREATE TABLE IF NOT EXISTS empresa (id INTEGER PRIMARY KEY, razao_social TEXT DEFAULT '', nome_fantasia TEXT DEFAULT '', cnpj TEXT DEFAULT '', ie TEXT DEFAULT '', im TEXT DEFAULT '', endereco TEXT DEFAULT '', numero TEXT DEFAULT '', bairro TEXT DEFAULT '', cidade TEXT DEFAULT '', uf TEXT DEFAULT '', cep TEXT DEFAULT '', telefone TEXT DEFAULT '', email TEXT DEFAULT '', regime_tributario TEXT DEFAULT 'simples_nacional', crt INTEGER DEFAULT 1)",
         "CREATE TABLE IF NOT EXISTS config_fiscal (id INTEGER PRIMARY KEY, ambiente INTEGER DEFAULT 2, serie_nfce INTEGER DEFAULT 1, serie_nfe INTEGER DEFAULT 1, csc_id TEXT DEFAULT '', csc_token TEXT DEFAULT '', proximo_numero_nfce INTEGER DEFAULT 1, proximo_numero_nfe INTEGER DEFAULT 1, certificado_arquivo TEXT DEFAULT '', certificado_senha TEXT DEFAULT '')",
+        # Emissão de cupom fiscal (NFC-e) via provedor terceirizado (Focus NFe etc.)
+        "ALTER TABLE config_fiscal ADD COLUMN cupom_fiscal_ativo INTEGER DEFAULT 0",
+        "ALTER TABLE config_fiscal ADD COLUMN provedor_fiscal TEXT DEFAULT 'focus_nfe'",
+        "ALTER TABLE config_fiscal ADD COLUMN provedor_token TEXT DEFAULT ''",
+        "CREATE TABLE IF NOT EXISTS notas_fiscais (id INTEGER PRIMARY KEY AUTOINCREMENT, venda_id INTEGER NOT NULL, modelo TEXT DEFAULT 'nfce', status TEXT DEFAULT 'pendente', numero TEXT DEFAULT '', serie TEXT DEFAULT '', chave_acesso TEXT DEFAULT '', protocolo TEXT DEFAULT '', url_danfe TEXT DEFAULT '', url_xml TEXT DEFAULT '', erro TEXT DEFAULT '', criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(venda_id) REFERENCES vendas(id))",
         "CREATE TABLE IF NOT EXISTS entradas_xml (id INTEGER PRIMARY KEY AUTOINCREMENT, chave_acesso TEXT DEFAULT '', fornecedor TEXT DEFAULT '', cnpj_fornecedor TEXT DEFAULT '', data_emissao TEXT DEFAULT '', valor_total REAL DEFAULT 0, xml_conteudo TEXT DEFAULT '', processado INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
         "CREATE TABLE IF NOT EXISTS itens_entrada_xml (id INTEGER PRIMARY KEY AUTOINCREMENT, entrada_id INTEGER NOT NULL, codigo TEXT DEFAULT '', descricao TEXT DEFAULT '', ncm TEXT DEFAULT '', cfop TEXT DEFAULT '', unidade TEXT DEFAULT '', quantidade REAL DEFAULT 0, valor_unitario REAL DEFAULT 0, valor_total REAL DEFAULT 0, produto_id INTEGER DEFAULT NULL, FOREIGN KEY(entrada_id) REFERENCES entradas_xml(id))",
+        # Adicionais pagos (ex.: granola, leite condensado, morango) - usado
+        # para "monte seu açaí" e qualquer produto que aceite acréscimos.
+        "CREATE TABLE IF NOT EXISTS adicionais (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, preco REAL NOT NULL DEFAULT 0, ativo INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+        "ALTER TABLE produtos ADD COLUMN tem_adicionais INTEGER DEFAULT 0",
+        "ALTER TABLE itens_venda ADD COLUMN adicionais_json TEXT DEFAULT ''",
+        # Vínculo de qual adicional está disponível em qual produto
+        # (o mesmo adicional do catálogo pode ser vinculado a vários produtos).
+        "CREATE TABLE IF NOT EXISTS produto_adicionais (id INTEGER PRIMARY KEY AUTOINCREMENT, produto_id INTEGER NOT NULL, adicional_id INTEGER NOT NULL, FOREIGN KEY(produto_id) REFERENCES produtos(id), FOREIGN KEY(adicional_id) REFERENCES adicionais(id))",
     ]:
         try: c.execute(sql); conn.commit()
         except: pass
@@ -266,10 +279,11 @@ def api_cadastrar_produto(data):
     else:
         codigo = _gerar_codigo(cur)
     descricao = data.get('descricao','')
-    cur.execute("""INSERT INTO produtos (nome,preco,quantidade,unidades,categoria,imagem,custo,markup,codigo,descricao)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+    tem_adic = 1 if data.get('tem_adicionais') else 0
+    cur.execute("""INSERT INTO produtos (nome,preco,quantidade,unidades,categoria,imagem,custo,markup,codigo,descricao,tem_adicionais)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (data['nome'], preco, int(data['quantidade']),
-                 data.get('unidades','un'), data.get('categoria','Geral'), imagem, custo, markup, codigo, descricao))
+                 data.get('unidades','un'), data.get('categoria','Geral'), imagem, custo, markup, codigo, descricao, tem_adic))
     conn.commit(); new_id = cur.lastrowid; conn.close()
     _auto_publicar_cardapio()
     return {"id": new_id, "ok": True, "codigo": codigo}
@@ -304,12 +318,13 @@ def api_atualizar_produto(data):
                 conn.close(); return {"ok":False,"erro":f"Código '{codigo}' já está em uso"}
         descricao = data.get('descricao','')
         emoji_val = data.get('emoji','')
+        tem_adic = 1 if data.get('tem_adicionais') else 0
         if imagem is not None:
-            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,imagem=?,codigo=?,descricao=?,emoji=? WHERE id=?",
-                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, imagem, codigo, descricao, emoji_val, pid))
+            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,imagem=?,codigo=?,descricao=?,emoji=?,tem_adicionais=? WHERE id=?",
+                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, imagem, codigo, descricao, emoji_val, tem_adic, pid))
         else:
-            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,codigo=?,descricao=?,emoji=? WHERE id=?",
-                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, codigo, descricao, emoji_val, pid))
+            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,codigo=?,descricao=?,emoji=?,tem_adicionais=? WHERE id=?",
+                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, codigo, descricao, emoji_val, tem_adic, pid))
     elif 'quantidade' in data and 'custo' not in data:
         c.execute("UPDATE produtos SET quantidade=? WHERE id=?", (int(data['quantidade']), pid))
     elif 'custo' in data:
@@ -341,6 +356,59 @@ def api_imagem_produto(produto_id):
     b64 = base64.b64encode(fpath.read_bytes()).decode()
     return f"data:{mime};base64,{b64}"
 
+
+
+# ─── ADICIONAIS (ex.: monte seu açaí) ─────────────────────────────────────────
+
+def api_listar_adicionais():
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT * FROM adicionais WHERE ativo=1 ORDER BY nome")
+    r = [dict(x) for x in c.fetchall()]
+    conn.close(); return r
+
+def api_cadastrar_adicional(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("INSERT INTO adicionais (nome,preco) VALUES (?,?)",
+              (data['nome'], float(data.get('preco', 0) or 0)))
+    conn.commit(); aid = c.lastrowid; conn.close()
+    return {"ok": True, "id": aid}
+
+def api_atualizar_adicional(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("UPDATE adicionais SET nome=?,preco=? WHERE id=?",
+              (data['nome'], float(data.get('preco', 0) or 0), int(data['id'])))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+def api_excluir_adicional(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("UPDATE adicionais SET ativo=0 WHERE id=?", (int(data['id']),))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+def api_produto_adicionais(produto_id):
+    """Lista os adicionais VINCULADOS a um produto específico (o que aparece pro cliente no PDV)."""
+    conn = get_connection(); c = conn.cursor()
+    c.execute("""SELECT pa.id as vinculo_id, a.id, a.nome, a.preco
+                 FROM produto_adicionais pa JOIN adicionais a ON pa.adicional_id=a.id
+                 WHERE pa.produto_id=? AND a.ativo=1 ORDER BY a.nome""", (produto_id,))
+    r = [dict(x) for x in c.fetchall()]
+    conn.close(); return r
+
+def api_vincular_adicional(data):
+    conn = get_connection(); c = conn.cursor()
+    pid = int(data['produto_id']); aid = int(data['adicional_id'])
+    c.execute("SELECT id FROM produto_adicionais WHERE produto_id=? AND adicional_id=?", (pid, aid))
+    if not c.fetchone():
+        c.execute("INSERT INTO produto_adicionais (produto_id,adicional_id) VALUES (?,?)", (pid, aid))
+        conn.commit()
+    conn.close(); return {"ok": True}
+
+def api_desvincular_adicional(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("DELETE FROM produto_adicionais WHERE id=?", (int(data['id']),))
+    conn.commit(); conn.close()
+    return {"ok": True}
 
 
 # ─── CATEGORIAS ──────────────────────────────────────────────────────────────
@@ -538,10 +606,13 @@ def api_registrar_venda(data):
             c.execute("UPDATE cupons SET usos=usos+1 WHERE codigo=?", (cupom,))
         for item in itens:
             desc_item = float(item.get('desconto_item',0) or 0)
-            sub = item['quantidade']*item['preco_unitario'] - desc_item
+            adicionais_item = item.get('adicionais') or []
+            valor_adicionais = sum(float(a.get('preco',0) or 0) for a in adicionais_item) * item['quantidade']
+            sub = item['quantidade']*item['preco_unitario'] + valor_adicionais - desc_item
             obs_item = item.get('observacao','')
-            c.execute("INSERT INTO itens_venda (venda_id,produto_id,quantidade,preco_unitario,subtotal,observacao,desconto_item) VALUES (?,?,?,?,?,?,?)",
-                      (venda_id,item['produto_id'],item['quantidade'],item['preco_unitario'],sub,obs_item,desc_item))
+            adicionais_json = json.dumps(adicionais_item, ensure_ascii=False) if adicionais_item else ''
+            c.execute("INSERT INTO itens_venda (venda_id,produto_id,quantidade,preco_unitario,subtotal,observacao,desconto_item,adicionais_json) VALUES (?,?,?,?,?,?,?,?)",
+                      (venda_id,item['produto_id'],item['quantidade'],item['preco_unitario'],sub,obs_item,desc_item,adicionais_json))
             c.execute("UPDATE produtos SET quantidade=quantidade-? WHERE id=?",
                       (item['quantidade'],item['produto_id']))
             c.execute("SELECT ingrediente_id,quantidade_usada FROM produto_ingredientes WHERE produto_id=?",(item['produto_id'],))
@@ -602,6 +673,64 @@ def api_cancelar_venda(data):
          f"Venda #{venda_id} cancelada — {fmt_val(venda['total'])} — Motivo: {motivo}")
     conn.commit(); conn.close()
     return {"ok":True}
+
+def api_alterar_pagamento_venda(data):
+    """
+    Altera a forma de pagamento de uma venda já finalizada (ex: cliente
+    pagou em dinheiro mas o operador lançou cartão por engano, ou o cliente
+    trocou de ideia depois de fechar a conta).
+    Exige senha de um usuário com perfil admin/gerente — a senha NÃO precisa
+    ser a do usuário logado no momento, para permitir que um supervisor
+    autorize remotamente sem precisar trocar de login no caixa.
+    Não permite trocar de/para 'crediario': crediário gera uma conta a
+    receber separada (tabela contas) em vez de um lançamento direto no
+    financeiro, então essa conversão precisa ser feita cancelando e
+    relançando a venda.
+    """
+    conn = get_connection(); c = conn.cursor()
+    venda_id = int(data['id'])
+    novo_tipo = data.get('novo_tipo_pagamento', '')
+    senha = data.get('senha', '')
+    uid = data.get('_uid'); unome = data.get('_unome', 'Sistema')
+
+    tipos_validos = ('dinheiro', 'cartao_credito', 'cartao_debito', 'pix')
+    if novo_tipo not in tipos_validos:
+        conn.close(); return {"ok": False, "erro": "Forma de pagamento inválida"}
+
+    if not senha:
+        conn.close(); return {"ok": False, "erro": "Informe a senha de autorização"}
+
+    senha_hash = _hash(senha)
+    c.execute("SELECT * FROM usuarios WHERE senha=? AND ativo=1 AND perfil IN ('admin','gerente')", (senha_hash,))
+    autorizador = c.fetchone()
+    if not autorizador:
+        conn.close(); return {"ok": False, "erro": "Senha incorreta ou sem permissão de supervisor"}
+    autorizador = dict(autorizador)
+
+    c.execute("SELECT * FROM vendas WHERE id=?", (venda_id,))
+    venda = c.fetchone()
+    if not venda: conn.close(); return {"ok": False, "erro": "Venda não encontrada"}
+    venda = dict(venda)
+    if venda.get('cancelada'): conn.close(); return {"ok": False, "erro": "Venda cancelada não pode ter o pagamento alterado"}
+    if venda.get('descartada'): conn.close(); return {"ok": False, "erro": "Venda descartada não pode ter o pagamento alterado"}
+
+    tipo_antigo = venda['tipo_pagamento']
+    if tipo_antigo == 'crediario' or novo_tipo == 'crediario':
+        conn.close(); return {"ok": False, "erro": "Não é possível converter de/para Crediário por aqui. Cancele a venda e lance novamente."}
+    if tipo_antigo == novo_tipo:
+        conn.close(); return {"ok": False, "erro": "A venda já está com essa forma de pagamento"}
+
+    c.execute("UPDATE vendas SET tipo_pagamento=? WHERE id=?", (novo_tipo, venda_id))
+    # Mantém o lançamento no financeiro em sincronia com a nova forma de pagamento
+    c.execute("UPDATE financeiro SET pagamento=? WHERE descricao=? AND tipo='entrada'",
+              (novo_tipo, f"Venda #{venda_id}"))
+
+    labels = {'dinheiro':'Dinheiro','cartao_credito':'Cartão Crédito','cartao_debito':'Cartão Débito','pix':'PIX'}
+    _log(c, uid, unome, 'ALTERAR_PAGAMENTO', 'PDV',
+         f"Venda #{venda_id} — pagamento alterado de {labels.get(tipo_antigo,tipo_antigo)} para {labels.get(novo_tipo,novo_tipo)} — autorizado por {autorizador['nome']}",
+         tipo_antigo, novo_tipo)
+    conn.commit(); conn.close()
+    return {"ok": True, "novo_tipo_pagamento": novo_tipo}
 
 def api_descartar_venda(data):
     """
@@ -1511,12 +1640,15 @@ def api_salvar_fiscal(data):
     cert = data.get('certificado_arquivo', old['certificado_arquivo'] if old else '')
     c.execute("DELETE FROM config_fiscal")
     c.execute("""INSERT INTO config_fiscal (id,ambiente,serie_nfce,serie_nfe,csc_id,csc_token,
-                 proximo_numero_nfce,proximo_numero_nfe,certificado_arquivo,certificado_senha)
-                 VALUES (1,?,?,?,?,?,?,?,?,?)""",
+                 proximo_numero_nfce,proximo_numero_nfe,certificado_arquivo,certificado_senha,
+                 cupom_fiscal_ativo,provedor_fiscal,provedor_token)
+                 VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?)""",
               (int(data.get('ambiente',2)), int(data.get('serie_nfce',1)),
                int(data.get('serie_nfe',1)), data.get('csc_id',''), data.get('csc_token',''),
                int(data.get('proximo_numero_nfce',1)), int(data.get('proximo_numero_nfe',1)),
-               cert, data.get('certificado_senha','')))
+               cert, data.get('certificado_senha',''),
+               1 if data.get('cupom_fiscal_ativo') else 0,
+               data.get('provedor_fiscal','focus_nfe'), data.get('provedor_token','')))
     conn.commit(); conn.close()
     return {"ok": True}
 
@@ -1541,6 +1673,151 @@ def api_upload_certificado(data):
         return {"ok": True, "arquivo": fname}
     except Exception as e:
         return {"ok": False, "erro": str(e)}
+
+# ─────────────────────────────────────────────
+# EMISSÃO DE CUPOM FISCAL (NFC-e) — via provedor terceirizado
+# ─────────────────────────────────────────────
+# Arquitetura em camadas: api_emitir_nfce() é o ponto de entrada único
+# (chamado depois que a venda já foi registrada). Ele lê qual provedor está
+# configurado e delega pro adaptador correspondente. Pra trocar de provedor
+# no futuro (ex.: sair da Focus NFe e ir pra PlugNotas), basta escrever um
+# novo adaptador _emitir_nfce_<provedor>() com a mesma assinatura e registrar
+# ele no dict PROVEDORES_FISCAIS lá embaixo — o resto do sistema não muda.
+#
+# ⚠️ IMPORTANTE: o adaptador da Focus NFe abaixo foi montado com base na
+# documentação pública deles (REST/JSON, autenticação por token, endpoint
+# /v2/nfce). Os NOMES EXATOS de alguns campos da nota (natureza da operação,
+# forma de pagamento, CST/CFOP por item, etc.) variam conforme o regime
+# tributário da empresa (Simples Nacional, Lucro Presumido...) e podem ter
+# sido atualizados pela Focus NFe depois desta implementação. ANTES de
+# habilitar em produção: crie uma conta em homologação na Focus NFe
+# (https://focusnfe.com.br), emita algumas notas de teste, e ajuste os
+# campos abaixo comparando com a resposta de erro da API (ela sempre diz
+# exatamente qual campo está errado).
+
+def _montar_payload_nfce(venda_id):
+    """Monta os dados de uma venda no formato usado pela Focus NFe."""
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT * FROM vendas WHERE id=?", (venda_id,))
+    venda = c.fetchone()
+    if not venda:
+        conn.close()
+        return None
+    c.execute("""SELECT iv.*, p.nome as produto_nome, p.codigo as produto_codigo
+                 FROM itens_venda iv JOIN produtos p ON iv.produto_id=p.id
+                 WHERE iv.venda_id=?""", (venda_id,))
+    itens = c.fetchall()
+    conn.close()
+
+    produtos_payload = []
+    for it in itens:
+        produtos_payload.append({
+            "numero_item": len(produtos_payload)+1,
+            "codigo_produto": it['produto_codigo'] or str(it['produto_id']),
+            "descricao": it['produto_nome'],
+            "cfop": "5102",              # ⚠️ venda dentro do estado — confirme com seu contador
+            "unidade_comercial": "UN",
+            "quantidade_comercial": it['quantidade'],
+            "valor_unitario_comercial": it['preco_unitario'],
+            "valor_bruto": it['subtotal'],
+            "unidade_tributavel": "UN",
+            "quantidade_tributavel": it['quantidade'],
+            "valor_unitario_tributacao": it['preco_unitario'],
+            "icms_origem": "0",
+            "icms_situacao_tributaria": "102",  # ⚠️ Simples Nacional sem permissão de crédito — confirme o regime da empresa
+        })
+
+    forma_pag_map = {
+        'dinheiro': '01', 'pix': '17', 'credito': '03', 'debito': '04', 'crediario': '99', 'misto': '99'
+    }
+    payload = {
+        "natureza_operacao": "Venda de mercadoria",
+        "presenca_comprador": "1",   # 1 = operação presencial
+        "modalidade_frete": "9",     # 9 = sem transporte
+        "forma_pagamento": "0",      # 0 = pagamento à vista
+        "formas_pagamento": [{
+            "forma_pagamento": forma_pag_map.get(venda['tipo_pagamento'], '99'),
+            "valor_pagamento": venda['total']
+        }],
+        "items": produtos_payload,
+    }
+    return payload
+
+PROVEDORES_FISCAIS = {}
+
+def _emitir_nfce_focus_nfe(venda_id, config):
+    import requests, uuid
+    token = config.get('provedor_token','')
+    if not token:
+        return {"sucesso": False, "erro": "Token da Focus NFe não configurado. Cadastre em Fiscal → Cupom Fiscal."}
+    ambiente = int(config.get('ambiente', 2))
+    base_url = "https://api.focusnfe.com.br" if ambiente == 1 else "https://homologacao.focusnfe.com.br"
+    ref = f"manafood-{venda_id}-{uuid.uuid4().hex[:8]}"
+    payload = _montar_payload_nfce(venda_id)
+    if payload is None:
+        return {"sucesso": False, "erro": "Venda não encontrada"}
+    try:
+        resp = requests.post(
+            f"{base_url}/v2/nfce",
+            params={"ref": ref},
+            json=payload,
+            auth=(token, ""),
+            timeout=30
+        )
+        data = resp.json() if resp.content else {}
+        # NFC-e é síncrona na Focus NFe: a resposta já vem com o resultado final
+        if resp.status_code in (200, 201) or data.get('status') == 'autorizado':
+            return {
+                "sucesso": True,
+                "status": data.get('status', 'autorizado'),
+                "numero": str(data.get('numero','')),
+                "serie": str(data.get('serie','')),
+                "chave_acesso": data.get('chave_nfe', data.get('chave','')),
+                "protocolo": data.get('protocolo',''),
+                "url_danfe": data.get('caminho_danfe', data.get('danfe','')),
+                "url_xml": data.get('caminho_xml_nota_fiscal', data.get('xml','')),
+                "ref": ref,
+            }
+        else:
+            erro_msg = data.get('mensagem') or data.get('erros') or resp.text or f"HTTP {resp.status_code}"
+            return {"sucesso": False, "erro": str(erro_msg), "ref": ref}
+    except requests.exceptions.RequestException as e:
+        return {"sucesso": False, "erro": f"Falha de conexão com a Focus NFe: {e}"}
+
+PROVEDORES_FISCAIS['focus_nfe'] = _emitir_nfce_focus_nfe
+
+def api_emitir_nfce(data):
+    """Ponto de entrada único: chamado depois que a venda já está registrada."""
+    venda_id = int(data['venda_id'])
+    config = api_get_fiscal()
+    if not config.get('cupom_fiscal_ativo'):
+        return {"sucesso": False, "erro": "Emissão de cupom fiscal não está ativada nas configurações."}
+    provedor = config.get('provedor_fiscal','focus_nfe')
+    adaptador = PROVEDORES_FISCAIS.get(provedor)
+    if not adaptador:
+        return {"sucesso": False, "erro": f"Provedor '{provedor}' ainda não implementado."}
+
+    resultado = adaptador(venda_id, config)
+
+    conn = get_connection(); c = conn.cursor()
+    if resultado.get('sucesso'):
+        c.execute("""INSERT INTO notas_fiscais (venda_id,modelo,status,numero,serie,chave_acesso,protocolo,url_danfe,url_xml)
+                     VALUES (?,?,?,?,?,?,?,?,?)""",
+                  (venda_id, 'nfce', resultado.get('status','autorizado'), resultado.get('numero',''),
+                   resultado.get('serie',''), resultado.get('chave_acesso',''), resultado.get('protocolo',''),
+                   resultado.get('url_danfe',''), resultado.get('url_xml','')))
+    else:
+        c.execute("""INSERT INTO notas_fiscais (venda_id,modelo,status,erro) VALUES (?,?,?,?)""",
+                  (venda_id, 'nfce', 'erro', resultado.get('erro','Erro desconhecido')))
+    conn.commit(); conn.close()
+    return resultado
+
+def api_status_nota_venda(venda_id):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT * FROM notas_fiscais WHERE venda_id=? ORDER BY id DESC LIMIT 1", (venda_id,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 # ─────────────────────────────────────────────
 # IMPORTAÇÃO XML NFe
@@ -1904,10 +2181,13 @@ def api_editar_venda(data):
         novo_total = 0
         for item in novos_itens:
             desc_item = float(item.get('desconto_item',0) or 0)
-            sub = item['quantidade'] * item['preco_unitario'] - desc_item
+            adicionais_item = item.get('adicionais') or []
+            valor_adicionais = sum(float(a.get('preco',0) or 0) for a in adicionais_item) * item['quantidade']
+            sub = item['quantidade'] * item['preco_unitario'] + valor_adicionais - desc_item
             novo_total += sub
-            c.execute("INSERT INTO itens_venda (venda_id,produto_id,quantidade,preco_unitario,subtotal,observacao,desconto_item) VALUES (?,?,?,?,?,?,?)",
-                      (venda_id, item['produto_id'], item['quantidade'], item['preco_unitario'], sub, item.get('observacao',''), desc_item))
+            adicionais_json = json.dumps(adicionais_item, ensure_ascii=False) if adicionais_item else ''
+            c.execute("INSERT INTO itens_venda (venda_id,produto_id,quantidade,preco_unitario,subtotal,observacao,desconto_item,adicionais_json) VALUES (?,?,?,?,?,?,?,?)",
+                      (venda_id, item['produto_id'], item['quantidade'], item['preco_unitario'], sub, item.get('observacao',''), desc_item, adicionais_json))
             c.execute("UPDATE produtos SET quantidade=quantidade-? WHERE id=?", (item['quantidade'], item['produto_id']))
         updates.append("total=?"); campos.append(novo_total)
         antes["novo_total"] = novo_total
@@ -2832,6 +3112,16 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
                 pid=int(path.split('/')[3])
                 self.send_json(api_produto_ingredientes(pid)); return
             except: pass
+        if path.startswith('/api/produtos/') and path.endswith('/adicionais'):
+            try:
+                pid=int(path.split('/')[3])
+                self.send_json(api_produto_adicionais(pid)); return
+            except: pass
+        if path.startswith('/api/vendas/') and path.endswith('/status-fiscal'):
+            try:
+                vid=int(path.split('/')[3])
+                self.send_json(api_status_nota_venda(vid)); return
+            except: pass
         if path == '/api/caixa/apuracao':
             self.send_json(api_apuracao_caixa(params)); return
         if path.startswith('/api/clientes/'):
@@ -2871,7 +3161,7 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
                 '/api/vendas':api_listar_vendas,'/api/cardapio':api_cardapio_publico,'/api/cupons':api_listar_cupons,'/api/backups':api_listar_backups,'/api/financeiro':api_financeiro,
                 '/api/contas':api_listar_contas,'/api/config':api_get_config,
                 '/api/caixa':lambda p=None: api_status_caixa(p),'/api/caixa/abertos':api_caixas_abertos,'/api/caixa/historico':api_historico_caixas,'/api/mesas/ativas':api_mesas_ativas,
-                '/api/usuarios':api_listar_usuarios}
+                '/api/usuarios':api_listar_usuarios,'/api/adicionais':api_listar_adicionais}
         fn=routes.get(path)
         if fn: self.send_json(fn())
         else:  self.send_json({"erro":"Rota nao encontrada"},404)
@@ -2887,6 +3177,12 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             '/api/categorias':         api_cadastrar_categoria,
             '/api/categorias/atualizar': api_atualizar_categoria,
             '/api/categorias/excluir':   api_excluir_categoria,
+            '/api/adicionais':           api_cadastrar_adicional,
+            '/api/adicionais/atualizar': api_atualizar_adicional,
+            '/api/adicionais/excluir':   api_excluir_adicional,
+            '/api/produtos/adicionais':          api_vincular_adicional,
+            '/api/produtos/adicionais/remover':  api_desvincular_adicional,
+            '/api/vendas/emitir-nfce':            api_emitir_nfce,
             '/api/produtos/atualizar': api_atualizar_produto,
             '/api/clientes':           api_cadastrar_cliente,
             '/api/clientes/atualizar': api_atualizar_cliente,
@@ -2895,6 +3191,7 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             '/api/vendas':             api_registrar_venda,
             '/api/vendas/cancelar':    api_cancelar_venda,
             '/api/vendas/editar':      api_editar_venda,
+            '/api/vendas/alterar-pagamento': api_alterar_pagamento_venda,
             '/api/vendas/descartar':   api_descartar_venda,
             '/api/vendas/recuperar':   api_recuperar_venda,
             '/api/vendas/tipo':        api_alterar_tipo_atendimento,'/api/cardapio/config':    api_salvar_cardapio_config,'/api/backup':             api_fazer_backup,

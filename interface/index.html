@@ -329,7 +329,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .prod-meta{color:var(--text2);font-size:11px;margin-top:1px}
 .add-btn{background:var(--accent-lt);border:1px solid #bfdbfe;border-radius:6px;color:var(--accent);font-size:12px;padding:5px 12px;cursor:pointer;font-weight:700;transition:all .15s;white-space:nowrap}
 .add-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-.cart-item{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
+.cart-item{display:flex;flex-direction:column;gap:3px;padding:7px 0;border-bottom:1px solid var(--border)}
 .cart-item:last-child{border-bottom:none}
 .qty-btn{width:24px;height:24px;border-radius:50%;border:1px solid var(--border2);background:#f8fafc;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:var(--accent);transition:background .12s}
 .qty-btn:hover{background:var(--accent-lt)}
@@ -865,6 +865,28 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         <div id="ep-emoji-grid" style="display:flex;flex-wrap:wrap;gap:2px;max-height:80px;overflow-y:auto"></div>
       </div>
 
+      <div class="form-group full" style="display:flex;align-items:center;gap:8px;background:#f8fafc;padding:10px;border-radius:8px;border:1px solid var(--border2)">
+        <input type="checkbox" id="ep-tem-adicionais" style="width:16px;height:16px">
+        <label for="ep-tem-adicionais" style="margin:0;cursor:pointer">🍧 Este produto aceita adicionais (ex.: granola, leite condensado — use para açaí; ou bacon, carne extra — use para lanches)</label>
+      </div>
+      <div class="form-group full" style="border:1px dashed var(--border2);border-radius:8px;padding:10px">
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>Adicionais deste produto</span>
+          <a href="javascript:void(0)" onclick="irParaAbaAdicionais()" style="font-size:11px;color:#2563eb;text-decoration:underline">⚙️ gerenciar catálogo</a>
+        </label>
+        <div id="ep-lista-adicionais-admin" style="margin:6px 0;font-size:12px"></div>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <select id="ep-select-adicional-catalogo" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px"><option value="">Selecione do catálogo...</option></select>
+          <button type="button" onclick="vincularAdicional('ep')" style="padding:6px 12px;border-radius:7px;border:none;background:var(--primary,#2563eb);color:#fff;font-size:12px;font-weight:700;cursor:pointer">Vincular</button>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Não existe ainda? Cadastre um novo no catálogo:</div>
+        <div style="display:flex;gap:6px">
+          <input id="ep-novo-adicional-nome" placeholder="Nome (ex: Carne extra)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+          <input id="ep-novo-adicional-preco" type="number" min="0" step="0.01" placeholder="Preço" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+          <button type="button" onclick="cadastrarAdicional('ep')" style="padding:6px 12px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">+ Add</button>
+        </div>
+      </div>
+
       <div class="form-group full">
         <label>🧂 Ingredientes do produto</label>
         <div id="ep-ing-lista" style="margin-bottom:6px"></div>
@@ -891,6 +913,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
     <button class="modal-close" onclick="document.getElementById('modal-impressao').classList.remove('open')">✕</button>
     <div class="modal-title" style="color:var(--green)">✅ Venda registrada!</div>
     <div class="imp-resumo" id="imp-resumo-venda"></div>
+    <div id="imp-cupom-fiscal-area" style="display:none;margin-bottom:12px"></div>
     <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">O que deseja imprimir?</div>
     <div style="display:flex;gap:10px">
       <button class="imp-btn-dav" onclick="imprimirDAV()">🧾 Cupom DAV</button>
@@ -1018,6 +1041,38 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
     <div style="display:flex;gap:8px;margin-top:14px">
       <button onclick="document.getElementById('modal-cancelar-venda').classList.remove('open')" style="flex:1;padding:11px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:13px;font-weight:700;cursor:pointer;color:var(--text2)">Voltar</button>
       <button onclick="confirmarCancelarVenda()" style="flex:1;padding:11px;border-radius:8px;border:none;background:var(--red);color:#fff;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(239,68,68,.3)">🚫 Confirmar cancelamento</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-alterar-pag" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" onclick="event.stopPropagation()" style="width:400px">
+    <button class="modal-close" onclick="document.getElementById('modal-alterar-pag').classList.remove('open')">✕</button>
+    <div class="modal-title" style="color:#16a34a">💳 Alterar forma de pagamento</div>
+    <input type="hidden" id="ap-id">
+    <div id="ap-resumo" style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px"></div>
+    <div class="cad-form" style="grid-template-columns:1fr">
+      <div class="form-group full">
+        <label>Nova forma de pagamento *</label>
+        <select id="ap-novo-tipo">
+          <option value="dinheiro">💵 Dinheiro</option>
+          <option value="cartao_credito">💳 Cartão Crédito</option>
+          <option value="cartao_debito">🏧 Cartão Débito</option>
+          <option value="pix">📱 PIX</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Senha de autorização (gerente/admin) *</label>
+        <input type="password" id="ap-senha" placeholder="Senha de supervisor" onkeydown="if(event.key==='Enter')confirmarAlterarPagamento()">
+      </div>
+    </div>
+    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px 12px;font-size:12px;color:#854d0e;margin-top:10px">
+      ⚠️ Essa ação exige senha de um usuário com perfil <strong>gerente</strong> ou <strong>admin</strong>. Não é possível converter de/para Crediário por aqui.
+    </div>
+    <div id="ap-erro" style="color:var(--red);font-size:12px;font-weight:700;margin-top:8px;display:none"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="document.getElementById('modal-alterar-pag').classList.remove('open')" style="flex:1;padding:11px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:13px;font-weight:700;cursor:pointer;color:var(--text2)">Voltar</button>
+      <button onclick="confirmarAlterarPagamento()" style="flex:1;padding:11px;border-radius:8px;border:none;background:#16a34a;color:#fff;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(22,163,74,.3)">💳 Confirmar alteração</button>
     </div>
   </div>
 </div>
@@ -1418,11 +1473,19 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         <button class="tab-btn" onclick="showEstoqueTab('markup',this)">💰 Custo & Markup</button>
         <button class="tab-btn" onclick="showEstoqueTab('categorias',this)">🏷️ Categorias</button>
         <button class="tab-btn" onclick="showEstoqueTab('ingredientes',this)">🧂 Ingredientes</button>
+        <button class="tab-btn" onclick="showEstoqueTab('adicionais',this)">🍧 Adicionais</button>
         <button class="tab-btn" onclick="showEstoqueTab('cadastrar',this)">➕ Cadastrar</button>
       </div>
 
       <!-- TAB ESTOQUE -->
       <div class="subtab active" id="est-subtab-estoque">
+        <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="position:relative;flex:1;max-width:340px">
+            <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text3)">🔍</span>
+            <input type="text" id="est-busca" placeholder="Buscar por nome ou código..." oninput="filtrarEstoque()" style="width:100%;padding:9px 12px 9px 32px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box">
+          </div>
+          <button id="est-busca-limpar" onclick="document.getElementById('est-busca').value='';filtrarEstoque()" style="display:none;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:12px;font-weight:700;cursor:pointer;color:var(--text2)">✕ Limpar</button>
+        </div>
         <div class="card" style="padding:0;overflow:hidden">
           <table class="tbl">
             <thead><tr><th></th><th>Produto</th><th>Código</th><th>Categoria</th><th>Preço venda</th><th>Quantidade</th><th>Status</th><th style="text-align:center">Ações</th></tr></thead>
@@ -1500,6 +1563,25 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         </div>
       </div>
 
+      <!-- TAB ADICIONAIS -->
+      <div class="subtab" id="est-subtab-adicionais">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">➕ Cadastrar adicional</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">
+            <div class="form-group"><label>Nome *</label><input id="adic-nome" placeholder="Ex: Granola"></div>
+            <div class="form-group"><label>Preço R$</label><input id="adic-preco" type="number" min="0" step="0.01" value="0"></div>
+          </div>
+          <button onclick="salvarAdicionalTab()" class="confirm-btn" style="width:100%;padding:9px;margin-top:10px">💾 Salvar</button>
+          <input type="hidden" id="adic-edit-id" value="">
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table class="tbl">
+            <thead><tr><th>Nome</th><th>Preço</th><th>Ações</th></tr></thead>
+            <tbody id="adic-body"><tr><td colspan="3"><div class="loading"><div class="spinner"></div></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="subtab" id="est-subtab-cadastrar">
         <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;max-width:820px">
           <div class="card" style="flex:1;min-width:320px;max-width:520px">
@@ -1531,6 +1613,27 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
                 <button class="img-remove-btn" id="img-remove-btn" onclick="removerImagem()">✕ Remover foto</button>
               </div>
               <div class="form-group full"><label>Descrição (aparece no cardápio)</label><input id="c-descricao" placeholder="Ex: Nosso mais pedido!"></div>
+              <div class="form-group full" style="display:flex;align-items:center;gap:8px;background:#f8fafc;padding:10px;border-radius:8px;border:1px solid var(--border2)">
+                <input type="checkbox" id="c-tem-adicionais" style="width:16px;height:16px">
+                <label for="c-tem-adicionais" style="margin:0;cursor:pointer">🍧 Este produto aceita adicionais (ex.: granola, leite condensado — use para açaí)</label>
+              </div>
+              <div class="form-group full" style="border:1px dashed var(--border2);border-radius:8px;padding:10px">
+                <label style="display:flex;justify-content:space-between;align-items:center">
+                  <span>Adicionais deste produto</span>
+                  <a href="javascript:void(0)" onclick="irParaAbaAdicionais()" style="font-size:11px;color:#2563eb;text-decoration:underline">⚙️ gerenciar catálogo</a>
+                </label>
+                <div id="c-lista-adicionais-admin" style="margin:6px 0;font-size:12px"></div>
+                <div style="display:flex;gap:6px;margin-bottom:6px">
+                  <select id="c-select-adicional-catalogo" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px"><option value="">Selecione do catálogo...</option></select>
+                  <button type="button" onclick="vincularAdicional('c')" style="padding:6px 12px;border-radius:7px;border:none;background:var(--primary,#2563eb);color:#fff;font-size:12px;font-weight:700;cursor:pointer">Vincular</button>
+                </div>
+                <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Não existe ainda? Cadastre um novo no catálogo:</div>
+                <div style="display:flex;gap:6px">
+                  <input id="c-novo-adicional-nome" placeholder="Nome (ex: Granola)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                  <input id="c-novo-adicional-preco" type="number" min="0" step="0.01" placeholder="Preço" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                  <button type="button" onclick="cadastrarAdicional('c')" style="padding:6px 12px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">+ Add</button>
+                </div>
+              </div>
               <div class="form-group full">
                 <label>🧂 Ingredientes do produto</label>
                 <div id="c-ing-lista" style="margin-bottom:6px"></div>
@@ -2462,7 +2565,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       <div class="panel-title">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>Configuração Fiscal
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;max-width:1300px">
         <div class="card">
           <div class="card-title">⚙️ Configurações Gerais</div>
           <div class="cad-form" style="grid-template-columns:1fr;gap:10px">
@@ -2478,6 +2581,26 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
             <div class="form-group"><label>Próx. número NFCe</label><input id="fis-prox-nfce" type="number" min="1" value="1"></div>
           </div>
           <button onclick="salvarFiscal()" class="confirm-btn" style="margin-top:12px">💾 Salvar configuração</button>
+        </div>
+        <div class="card">
+          <div class="card-title">🧾 Cupom Fiscal (NFC-e) na venda</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Emite a NFC-e automaticamente ao finalizar cada venda, via provedor terceirizado (não fala direto com a SEFAZ).</div>
+          <div class="form-group full" style="display:flex;align-items:center;gap:8px;background:#f8fafc;padding:10px;border-radius:8px;border:1px solid var(--border2);margin-bottom:10px">
+            <input type="checkbox" id="fis-cupom-ativo" style="width:16px;height:16px">
+            <label for="fis-cupom-ativo" style="margin:0;cursor:pointer">Ativar emissão de cupom fiscal ao finalizar venda</label>
+          </div>
+          <div class="cad-form" style="grid-template-columns:1fr;gap:10px">
+            <div class="form-group"><label>Provedor</label>
+              <select id="fis-provedor">
+                <option value="focus_nfe">Focus NFe</option>
+                <option value="plugnotas" disabled>PlugNotas / TecnoSpeed (em breve)</option>
+                <option value="enotas" disabled>eNotas (em breve)</option>
+                <option value="webmaniabr" disabled>WebmaniaBR (em breve)</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Token da API</label><input id="fis-provedor-token" type="password" placeholder="Token obtido no painel do provedor"></div>
+          </div>
+          <button onclick="salvarFiscal()" class="confirm-btn" style="width:100%;margin-top:12px">💾 Salvar cupom fiscal</button>
         </div>
         <div class="card">
           <div class="card-title">🔐 CSC / Token NFCe</div>
@@ -3294,12 +3417,152 @@ async function usarCashbackPDV(){
 }
 
 // ── PDV ────────────────────────────────────────────────────────────────────────
+var adicionaisDisponiveis=[];   // catálogo global (nome+preço)
+var _prodAdicTemp=[];           // vínculos temporários (produto ainda não salvo, no form de CRIAR)
+var _epAdicVinculados=[];       // vínculos do produto sendo EDITADO (vindos do banco)
+
 async function loadProdutos(){
   const data=await api('/produtos'); if(!data) return;
   var changed=JSON.stringify(data)!==JSON.stringify(produtos);
   produtos=data;
   if(changed) renderProdutos();
 }
+async function loadAdicionais(){
+  const data=await api('/adicionais'); if(!data) return;
+  adicionaisDisponiveis=data;
+  _preencherSelectCatalogo('c');
+  _preencherSelectCatalogo('ep');
+  renderAdicionaisAdmin('c');
+  renderAdicionaisAdmin('ep');
+}
+function _preencherSelectCatalogo(prefixo){
+  const sel=document.getElementById(prefixo+'-select-adicional-catalogo');
+  if(!sel) return;
+  sel.innerHTML='<option value="">Selecione do catálogo...</option>'+
+    adicionaisDisponiveis.map(a=>'<option value="'+a.id+'">'+a.nome+' ('+fmt(a.preco)+')</option>').join('');
+}
+// Lista exibida = vínculos do produto (não o catálogo inteiro)
+function renderAdicionaisAdmin(prefixo){
+  const el=document.getElementById((prefixo||'c')+'-lista-adicionais-admin');
+  if(!el) return;
+  const lista = prefixo==='ep' ? _epAdicVinculados : _prodAdicTemp;
+  if(!lista.length){ el.innerHTML='<span style="color:#94a3b8">Nenhum adicional vinculado ainda.</span>'; return; }
+  el.innerHTML = lista.map(a=>
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f1f5f9">'+
+    '<span>'+a.nome+' — <b>'+fmt(a.preco)+'</b></span>'+
+    '<button type="button" onclick="desvincularAdicional(\''+prefixo+'\','+(a.vinculo_id!==undefined?a.vinculo_id:'null')+','+a.id+')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:12px">✕ remover</button>'+
+    '</div>'
+  ).join('');
+}
+// Cadastra um adicional NOVO no catálogo global e já vincula ao produto atual
+async function cadastrarAdicional(prefixo){
+  prefixo = prefixo||'c';
+  const nome=document.getElementById(prefixo+'-novo-adicional-nome').value.trim();
+  const preco=parseFloat(document.getElementById(prefixo+'-novo-adicional-preco').value)||0;
+  if(!nome){toast('Informe o nome do adicional','err');return}
+  const res=await api('/adicionais','POST',{nome,preco});
+  if(res&&res.ok){
+    document.getElementById(prefixo+'-novo-adicional-nome').value='';
+    document.getElementById(prefixo+'-novo-adicional-preco').value='';
+    await loadAdicionais();
+    // já vincula ao produto atual automaticamente
+    await vincularAdicionalPorId(prefixo, res.id, nome, preco);
+    toast(`"${nome}" criado e vinculado!`);
+  } else toast('Erro ao cadastrar adicional','err');
+}
+// Vincula um adicional já existente do catálogo (escolhido no <select>)
+async function vincularAdicional(prefixo){
+  const sel=document.getElementById(prefixo+'-select-adicional-catalogo');
+  const aid=parseInt(sel.value); if(!aid){toast('Escolha um adicional do catálogo','err');return}
+  const a=adicionaisDisponiveis.find(x=>x.id===aid); if(!a) return;
+  await vincularAdicionalPorId(prefixo, aid, a.nome, a.preco);
+  sel.value='';
+}
+async function vincularAdicionalPorId(prefixo, aid, nome, preco){
+  if(prefixo==='ep'){
+    const pid=parseInt(document.getElementById('ep-id').value);
+    if(_epAdicVinculados.find(x=>x.id===aid)){toast('Já vinculado','warn');return}
+    const res=await api('/produtos/adicionais','POST',{produto_id:pid,adicional_id:aid});
+    if(res&&res.ok){ delete _cacheAdicPorProduto[pid]; await _epCarregarAdicionais(pid); toast('Adicional vinculado'); }
+  } else {
+    if(_prodAdicTemp.find(x=>x.id===aid)){toast('Já vinculado','warn');return}
+    _prodAdicTemp.push({id:aid,nome,preco});
+    renderAdicionaisAdmin('c');
+  }
+}
+async function desvincularAdicional(prefixo, vinculoId, adicionalId){
+  if(prefixo==='ep' && vinculoId){
+    const pid=parseInt(document.getElementById('ep-id').value);
+    const res=await api('/produtos/adicionais/remover','POST',{id:vinculoId});
+    if(res&&res.ok){ delete _cacheAdicPorProduto[pid]; await _epCarregarAdicionais(pid); toast('Removido'); }
+  } else {
+    _prodAdicTemp=_prodAdicTemp.filter(x=>x.id!==adicionalId);
+    renderAdicionaisAdmin('c');
+  }
+}
+async function _epCarregarAdicionais(pid){
+  const data=await api('/produtos/'+pid+'/adicionais');
+  _epAdicVinculados = data ? data.map(a=>({vinculo_id:a.vinculo_id,id:a.id,nome:a.nome,preco:a.preco})) : [];
+  renderAdicionaisAdmin('ep');
+}
+
+// ── ADICIONAIS (aba própria, mesmo padrão de Ingredientes) ────────────────────
+function irParaAbaAdicionais(){
+  const modalEdit=document.getElementById('modal-edit-prod');
+  if(modalEdit && modalEdit.classList.contains('open')) closeModalProd();
+  const btn=document.querySelector('#panel-estoque .tab-btn:nth-child(5)');
+  showEstoqueTab('adicionais', btn);
+}
+async function loadAdicionaisTab(){
+  await loadAdicionais();
+  const tb=document.getElementById('adic-body');
+  if(!tb) return;
+  const data=adicionaisDisponiveis;
+  if(!data.length){tb.innerHTML='<tr><td colspan="3"><div class="empty">Nenhum adicional cadastrado</div></td></tr>';return}
+  tb.innerHTML=data.map(a=>
+    '<tr><td style="font-weight:700">'+a.nome+'</td><td>'+fmt(a.preco)+'</td>'+
+    '<td><button onclick="editarAdicionalTab('+a.id+')" class="btn-sm" style="font-size:11px">✏️</button> '+
+    '<button onclick="excluirAdicionalTab('+a.id+')" class="btn-sm btn-danger" style="font-size:11px">🗑️</button></td></tr>'
+  ).join('');
+}
+async function salvarAdicionalTab(){
+  const id=document.getElementById('adic-edit-id').value;
+  const nome=document.getElementById('adic-nome').value.trim();
+  const preco=parseFloat(document.getElementById('adic-preco').value)||0;
+  if(!nome){toast('Informe o nome do adicional','err');return}
+  const path=id?'/adicionais/atualizar':'/adicionais';
+  const payload=id?{id,nome,preco}:{nome,preco};
+  const res=await api(path,'POST',payload);
+  if(res&&res.ok){
+    toast('Adicional salvo!');
+    limparFormAdicionalTab();
+    _cacheAdicPorProduto={}; // invalida cache do PDV
+    await loadAdicionaisTab();
+  } else toast((res&&res.erro)||'Erro','err');
+}
+function editarAdicionalTab(id){
+  const a=adicionaisDisponiveis.find(x=>x.id===id); if(!a) return;
+  document.getElementById('adic-edit-id').value=a.id;
+  document.getElementById('adic-nome').value=a.nome;
+  document.getElementById('adic-preco').value=a.preco;
+}
+function limparFormAdicionalTab(){
+  document.getElementById('adic-edit-id').value='';
+  document.getElementById('adic-nome').value='';
+  document.getElementById('adic-preco').value='0';
+}
+async function excluirAdicionalTab(id){
+  if(!await _customConfirm('Excluir este adicional? Ele será removido de todos os produtos vinculados.',{icon:'🗑️',title:'Excluir adicional',confirmText:'Excluir',confirmColor:'#dc2626'})) return;
+  const res=await api('/adicionais/excluir','POST',{id});
+  if(res&&res.ok){
+    toast('Adicional excluído');
+    _cacheAdicPorProduto={};
+    const epId=document.getElementById('ep-id'); if(epId&&epId.value) await _epCarregarAdicionais(parseInt(epId.value));
+    _prodAdicTemp=_prodAdicTemp.filter(x=>x.id!==id); renderAdicionaisAdmin('c');
+    await loadAdicionaisTab();
+  } else toast('Erro ao excluir','err');
+}
+
 
 var FOOD_EMOJIS=['🍔','🍟','🌭','🍕','🌮','🌯','🥪','🥐','🧀','🍗','🍖','🥩','🥓','🍳','🥚','🥞','🧇','🥯','🍞','🥨','🥖','🧈','🥗','🥘','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🍤','🍙','🍚','🥠','🥡','🍦','🍧','🍨','🍩','🍪','🎂','🍰','🧁','🥧','🍫','🍬','🍭','🍮','🍯','🥤','🧃','🧉','☕','🍵','🫖','🍶','🍺','🥛','🧋','🍹','🍷','🥃','🍸','💧','🫗','🥝','🍎','🍊','🍋','🍇','🍓','🫐','🍌','🥑','🌽','🥕','🍅'];
 function imgTag(p,size=40){
@@ -3387,17 +3650,107 @@ function gerarCodigoAleatorio(inputId){
 
 function addCart(id){
   const p=produtos.find(x=>x.id===id); if(!p||p.quantidade<=0) return;
-  const ci=carrinho.find(x=>x.id===id);
-  if(ci){if(ci.qtd<p.quantidade){ci.qtd++;ci.subtotal=ci.qtd*p.preco}}
-  else carrinho.push({id,nome:p.nome,preco:p.preco,qtd:1,subtotal:p.preco});
+  _addCartFinal(p, []);
+}
+function _addCartFinal(p, adicionaisEscolhidos){
+  const valorAdic = adicionaisEscolhidos.reduce((s,a)=>s+a.preco,0);
+  const precoLinha = p.preco + valorAdic;
+  // Produto com adicionais diferentes forma uma linha própria no carrinho
+  // (a "chave" combina o id do produto com os adicionais escolhidos).
+  const chave = adicionaisEscolhidos.length
+    ? p.id + '_' + adicionaisEscolhidos.map(a=>a.id).sort().join('-')
+    : p.id;
+  const ci = carrinho.find(x=>x._chave===chave);
+  if(ci){ if(ci.qtd<p.quantidade){ ci.qtd++; ci.subtotal=ci.qtd*precoLinha; } }
+  else carrinho.push({
+    id:p.id, _chave:chave, nome:p.nome, preco:precoLinha, basePreco:p.preco, qtd:1, subtotal:precoLinha,
+    adicionais:adicionaisEscolhidos
+  });
   renderCart();
 }
-function changeQty(id,delta){
-  const ci=carrinho.find(x=>x.id===id); if(!ci) return;
-  const p=produtos.find(x=>x.id===id);
+var _cacheAdicPorProduto = {}; // cache: produto_id -> lista de adicionais vinculados
+async function abrirSeletorAdicionais(p, chaveExistente){
+  const jaEscolhidos = chaveExistente
+    ? (carrinho.find(x=>String(x._chave)===String(chaveExistente))||{}).adicionais||[]
+    : [];
+  let lista = _cacheAdicPorProduto[p.id];
+  if(!lista){
+    lista = await api('/produtos/'+p.id+'/adicionais') || [];
+    _cacheAdicPorProduto[p.id] = lista;
+  }
+  if(!lista.length){
+    toast('Nenhum adicional vinculado a este produto ainda','warn');
+    if(!chaveExistente) _addCartFinal(p, []);
+    return;
+  }
+  const opcoes = lista.map(a=>
+    '<label style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #f1f5f9;font-size:13px">'+
+    '<span><input type="checkbox" data-add-id="'+a.id+'" '+(jaEscolhidos.find(j=>j.id===a.id)?'checked':'')+' style="margin-right:8px"> '+a.nome+'</span>'+
+    '<span style="font-weight:700">+ '+fmt(a.preco)+'</span></label>'
+  ).join('');
+  const html =
+    '<div id="modal-adicionais" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center">'+
+    '<div style="background:#fff;border-radius:12px;padding:18px;width:320px;max-width:92vw;max-height:80vh;overflow:auto">'+
+    '<div style="font-weight:700;font-size:15px;margin-bottom:4px">'+p.nome+'</div>'+
+    '<div style="font-size:12px;color:#64748b;margin-bottom:10px">Escolha os adicionais (opcional)</div>'+
+    opcoes+
+    '<div style="display:flex;gap:8px;margin-top:14px">'+
+    '<button onclick="document.getElementById(\'modal-adicionais\').remove()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff">Cancelar</button>'+
+    '<button onclick="_confirmarAdicionais('+p.id+',\''+(chaveExistente!==undefined?chaveExistente:'')+'\')" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--primary,#e67e22);color:#fff;font-weight:700">'+(chaveExistente?'Salvar':'Adicionar')+'</button>'+
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function _confirmarAdicionais(pid, chaveExistente){
+  const p = produtos.find(x=>x.id===pid);
+  const modal = document.getElementById('modal-adicionais');
+  const lista = _cacheAdicPorProduto[pid] || [];
+  const marcados = Array.from(modal.querySelectorAll('[data-add-id]:checked'))
+    .map(el=>lista.find(a=>a.id===parseInt(el.dataset.addId)))
+    .filter(Boolean);
+  modal.remove();
+  if(chaveExistente){
+    _aplicarAdicionaisAoItem(chaveExistente, marcados);
+  } else {
+    _addCartFinal(p, marcados);
+  }
+}
+function _removerAdicionalDoItem(chave, adicionalId){
+  const it = carrinho.find(x=>String(x._chave)===String(chave)); if(!it) return;
+  const novosAdicionais = (it.adicionais||[]).filter(a=>a.id!==adicionalId);
+  _aplicarAdicionaisAoItem(chave, novosAdicionais);
+}
+function abrirAdicionaisDoItem(chave){
+  const it = carrinho.find(x=>String(x._chave)===String(chave)); if(!it) return;
+  const p = produtos.find(x=>x.id===it.id); if(!p) return;
+  abrirSeletorAdicionais(p, chave);
+}
+function _aplicarAdicionaisAoItem(chaveAntiga, novosAdicionais){
+  const it = carrinho.find(x=>String(x._chave)===String(chaveAntiga)); if(!it) return;
+  const p = produtos.find(x=>x.id===it.id);
+  const valorAdic = novosAdicionais.reduce((s,a)=>s+a.preco,0);
+  const novaChave = novosAdicionais.length
+    ? it.id + '_' + novosAdicionais.map(a=>a.id).sort().join('-')
+    : it.id;
+  // Se já existe outra linha desse produto com a mesma combinação nova, mescla nela
+  const outra = carrinho.find(x=>String(x._chave)===String(novaChave) && x!==it);
+  if(outra){
+    outra.qtd += it.qtd;
+    outra.subtotal = outra.qtd*outra.preco;
+    carrinho = carrinho.filter(x=>x!==it);
+  } else {
+    it._chave = novaChave;
+    it.adicionais = novosAdicionais;
+    it.preco = (it.basePreco!==undefined?it.basePreco:p.preco) + valorAdic;
+    it.subtotal = it.qtd * it.preco;
+  }
+  renderCart();
+}
+function changeQty(chave,delta){
+  const ci=carrinho.find(x=>String(x._chave)===String(chave)); if(!ci) return;
+  const p=produtos.find(x=>x.id===ci.id);
   ci.qtd+=delta;
-  if(ci.qtd<=0) carrinho=carrinho.filter(x=>x.id!==id);
-  else{if(ci.qtd>p.quantidade)ci.qtd=p.quantidade; ci.subtotal=ci.qtd*ci.preco}
+  if(ci.qtd<=0) carrinho=carrinho.filter(x=>String(x._chave)!==String(chave));
+  else{if(p && ci.qtd>p.quantidade)ci.qtd=p.quantidade; ci.subtotal=ci.qtd*ci.preco}
   renderCart();
 }
 function renderCart(){
@@ -3415,15 +3768,29 @@ function renderCart(){
     '<div style="font-weight:700;font-size:13px">'+i.nome+'</div>' +
     (i.desconto_item>0?'<span style="font-size:10px;background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:4px">-'+fmt(i.desconto_item)+'</span>':'') +
     '</div>' +
+    (i.adicionais&&i.adicionais.length?
+      '<div style="font-size:11px;color:#059669;display:flex;flex-wrap:wrap;align-items:center;gap:4px">'+
+      i.adicionais.map(a=>
+        '<span style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:1px 6px;display:inline-flex;align-items:center;gap:3px">'+
+        a.nome+
+        '<a href="javascript:void(0)" onclick="_removerAdicionalDoItem(\''+i._chave+'\','+a.id+')" style="color:#ef4444;font-weight:700;text-decoration:none;margin-left:2px">×</a>'+
+        '</span>'
+      ).join('')+
+      '<a href="javascript:void(0)" onclick="abrirAdicionaisDoItem(\''+i._chave+'\')" style="color:#64748b;text-decoration:underline">+ adicional</a>'+
+      '</div>'
+      : (produtos.find(x=>x.id===i.id)||{}).tem_adicionais
+        ? '<div><a href="javascript:void(0)" onclick="abrirAdicionaisDoItem(\''+i._chave+'\')" style="font-size:11px;color:#059669;text-decoration:underline">+ adicional</a></div>'
+        : ''
+    ) +
     '<div style="display:flex;align-items:center;gap:6px">' +
-    '<button class="qty-btn" data-qid="'+i.id+'" data-d="-1">−</button>' +
-    '<input type="number" min="1" data-qty-edit="'+i.id+'" value="'+i.qtd+'" ' +
+    '<button class="qty-btn" data-qid="'+i._chave+'" data-d="-1">−</button>' +
+    '<input type="number" min="1" data-qty-edit="'+i._chave+'" value="'+i.qtd+'" ' +
     'style="width:40px;text-align:center;border:1px solid #cbd5e1;border-radius:5px;font-size:13px;padding:2px 4px;font-weight:700">' +
-    '<button class="qty-btn" data-qid="'+i.id+'" data-d="1">+</button>' +
+    '<button class="qty-btn" data-qid="'+i._chave+'" data-d="1">+</button>' +
     '<span style="min-width:65px;text-align:right;font-size:13px">'+fmt(i.subtotal)+'</span>' +
-    '<button class="qty-btn" data-desc-id="'+i.id+'" title="Desconto" style="font-size:10px;padding:0 5px">%</button>' +
+    '<button class="qty-btn" data-desc-id="'+i._chave+'" title="Desconto" style="font-size:10px;padding:0 5px">%</button>' +
     '</div>' +
-    '<input placeholder="Observação..." data-obs-id="'+i.id+'" value="'+(i.obs||'')+'" ' +
+    '<input placeholder="Observação..." data-obs-id="'+i._chave+'" value="'+(i.obs||'')+'" ' +
     'class="cart-obs-input" ' +
     'style="width:100%;padding:3px 8px;border:1px dashed #cbd5e1;border-radius:5px;font-size:11px;color:#555;margin-top:3px;outline:none">' +
     '</div>'
@@ -3435,25 +3802,25 @@ function renderCart(){
     cl.parentNode.replaceChild(newCl, cl);
     newCl.addEventListener('click', function(e){
       const btn = e.target.closest('[data-qid]');
-      if(btn){ changeQty(parseInt(btn.dataset.qid), parseInt(btn.dataset.d)); return; }
+      if(btn){ changeQty(btn.dataset.qid, parseInt(btn.dataset.d)); return; }
       const btnD = e.target.closest('[data-desc-id]');
-      if(btnD){ abrirDescontoItem(parseInt(btnD.dataset.descId)); return; }
+      if(btnD){ abrirDescontoItem(btnD.dataset.descId); return; }
     });
     newCl.addEventListener('input', function(e){
       // Campo obs
       const inp = e.target.closest('[data-obs-id]');
       if(inp){
-        const it = carrinho.find(x=>x.id===parseInt(inp.dataset.obsId));
+        const it = carrinho.find(x=>String(x._chave)===String(inp.dataset.obsId));
         if(it) it.obs = inp.value;
         return;
       }
       // Campo quantidade editável
       const qtyInp = e.target.closest('[data-qty-edit]');
       if(qtyInp){
-        const id = parseInt(qtyInp.dataset.qtyEdit);
+        const chave = qtyInp.dataset.qtyEdit;
         const novaQty = parseInt(qtyInp.value)||1;
-        const it = carrinho.find(x=>x.id===id);
-        const p  = produtos.find(x=>x.id===id);
+        const it = carrinho.find(x=>String(x._chave)===String(chave));
+        const p  = it && produtos.find(x=>x.id===it.id);
         if(it){
           it.qtd = Math.max(1, Math.min(novaQty, (p && p.quantidade)||9999));
           it.subtotal = it.qtd * it.preco;
@@ -3472,8 +3839,8 @@ function renderCart(){
       // Confirma quantidade ao sair do campo
       const qtyInp = e.target.closest('[data-qty-edit]');
       if(qtyInp){
-        const id = parseInt(qtyInp.dataset.qtyEdit);
-        const it = carrinho.find(x=>x.id===id);
+        const chave = qtyInp.dataset.qtyEdit;
+        const it = carrinho.find(x=>String(x._chave)===String(chave));
         if(it && parseInt(qtyInp.value)<1){ qtyInp.value=1; it.qtd=1; it.subtotal=it.preco; renderCart(); }
       }
     });
@@ -3594,8 +3961,9 @@ async function finalizarVenda(){
   }
   const total = subtotal + taxa_ent;
   const itens=carrinho.map(i=>({
-    produto_id:i.id,quantidade:i.qtd,preco_unitario:i.preco,
-    observacao:i.obs||'',desconto_item:i.desconto_item||0
+    produto_id:i.id,quantidade:i.qtd,preco_unitario:(i.basePreco!==undefined?i.basePreco:i.preco),
+    observacao:i.obs||'',desconto_item:i.desconto_item||0,
+    adicionais:(i.adicionais||[]).map(a=>({id:a.id,nome:a.nome,preco:a.preco}))
   }));
   const btn=document.getElementById('confirm-btn');
   btn.disabled=true;btn.textContent='Registrando...';
@@ -3689,6 +4057,7 @@ function showEstoqueTab(id,btn){
   if(id==='markup') loadMarkup();
   if(id==='categorias') loadCategorias();
   if(id==='ingredientes') loadIngredientes();
+  if(id==='adicionais') loadAdicionaisTab();
   if(id==='cadastrar'){ loadCategorias(); loadIngSelect(); }
 }
 
@@ -3700,7 +4069,8 @@ async function loadEstoque(){
   document.getElementById('est-units').textContent=data.reduce((s,p)=>s+p.quantidade,0);
   const valorTotal=data.reduce((s,p)=>s+(p.custo>0?p.custo:p.preco)*p.quantidade,0);
   document.getElementById('est-valor').textContent=fmt(valorTotal);
-  renderTabelaEstoque(data);
+  const buscaEl=document.getElementById('est-busca');
+  if(buscaEl && buscaEl.value.trim()){ filtrarEstoque(); } else { renderTabelaEstoque(data); }
 }
 
 function renderTabelaEstoque(data){
@@ -3764,6 +4134,21 @@ function renderTabelaEstoque(data){
     </tr>`;
   }).join('');
   _initEstoqueEvents();
+}
+
+function _normalizaBusca(s){
+  return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+
+function filtrarEstoque(){
+  const termoEl = document.getElementById('est-busca');
+  const termo = _normalizaBusca(termoEl.value.trim());
+  document.getElementById('est-busca-limpar').style.display = termo ? 'inline-block' : 'none';
+  const base = estoqueDados || [];
+  const filtrado = termo
+    ? base.filter(p => _normalizaBusca(p.nome).includes(termo) || _normalizaBusca(p.codigo).includes(termo))
+    : base;
+  renderTabelaEstoque(filtrado);
 }
 
 function renderTabelaMarkup(data){
@@ -4701,6 +5086,8 @@ function _initHistoricoEvents(){
     if(btnK){ reimprimirCozinha(btnK.dataset.cozinha); return; }
     const btnT = e.target.closest('[data-alterar-tipo]');
     if(btnT){ abrirAlterarTipoAtend(parseInt(btnT.dataset.alterarTipo), btnT.dataset.tipo, btnT.dataset.mesa, btnT.dataset.nome); return; }
+    const btnP = e.target.closest('[data-alterar-pag]');
+    if(btnP){ abrirAlterarPagamento(parseInt(btnP.dataset.alterarPag), btnP.dataset.pagAtual); return; }
     // Recuperar venda descartada
     const btnR = e.target.closest('[data-recuperar]');
     if(btnR){ recuperarVendaDoHistorico(parseInt(btnR.dataset.recuperar)); return; }
@@ -4834,7 +5221,8 @@ async function loadHistorico(){
           : `${btnEdit}${btnCancel}
         <button class="btn-sm" style="font-size:11px;padding:4px 9px;border-color:#6366f1;color:#6366f1;background:#eef2ff" data-dav="${v.id}">🧾 DAV</button>
         <button class="btn-sm" style="font-size:11px;padding:4px 9px;border-color:#0891b2;color:#0891b2;background:#ecfeff" data-cozinha="${v.id}">👨‍🍳 Cozinha</button>
-        <button class="btn-sm" style="font-size:11px;padding:4px 9px;border-color:#7c3aed;color:#7c3aed;background:#f5f3ff" data-alterar-tipo="${v.id}" data-tipo="${v.tipo_atendimento}" data-mesa="${v.mesa||''}" data-nome="${v.nome_cliente_balcao||''}">🔄 Tipo</button>`}
+        <button class="btn-sm" style="font-size:11px;padding:4px 9px;border-color:#7c3aed;color:#7c3aed;background:#f5f3ff" data-alterar-tipo="${v.id}" data-tipo="${v.tipo_atendimento}" data-mesa="${v.mesa||''}" data-nome="${v.nome_cliente_balcao||''}">🔄 Tipo</button>
+        ${v.tipo_pagamento!=='crediario'?`<button class="btn-sm" style="font-size:11px;padding:4px 9px;border-color:#16a34a;color:#16a34a;background:#f0fdf4" data-alterar-pag="${v.id}" data-pag-atual="${v.tipo_pagamento}">💳 Pagamento</button>`:''}`}
       </div>
     </div>`;
   }).join('');
@@ -4949,8 +5337,38 @@ function onImpressaoModoChange(){
 // ── IMPRESSÃO ─────────────────────────────────────────────────────────────────
 let _ultimaVenda = null; // guarda dados da última venda para reimprimir
 
+var _cupomFiscalAtivo = false;
+async function loadStatusCupomFiscal(){
+  const d = await api('/fiscal'); if(!d) return;
+  _cupomFiscalAtivo = !!d.cupom_fiscal_ativo;
+}
+async function _emitirCupomFiscal(venda_id){
+  const res = await api('/vendas/emitir-nfce','POST',{venda_id});
+  const area = document.getElementById('fiscal-status-'+venda_id);
+  if(res && res.sucesso){
+    const html =
+      '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:12px;color:#166534">'+
+      '✅ NFC-e emitida — nº '+(res.numero||'—')+' série '+(res.serie||'—')+
+      (res.url_danfe?' <a href="'+res.url_danfe+'" target="_blank" style="color:#166534;text-decoration:underline;font-weight:700">🖨️ Ver/Imprimir DANFCE</a>':'')+
+      '</div>';
+    if(area) area.outerHTML = html;
+    else toast('✅ NFC-e #'+(res.numero||'')+' emitida!');
+  } else {
+    const msg = (res&&res.erro) || 'Erro desconhecido ao emitir NFC-e';
+    const html =
+      '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 12px;font-size:12px;color:#991b1b">'+
+      '⚠️ Falha ao emitir NFC-e: '+msg+' — a venda foi registrada normalmente.'+
+      ' <a href="javascript:void(0)" onclick="_emitirCupomFiscal('+venda_id+')" style="color:#991b1b;text-decoration:underline;font-weight:700">Tentar de novo</a>'+
+      '</div>';
+    if(area) area.outerHTML = html;
+    else toast('⚠️ Falha ao emitir NFC-e: '+msg,'err');
+  }
+}
 function abrirModalImpressao(venda_id, payload, total){
   _ultimaVenda = {venda_id, payload, total};
+
+  // Cupom fiscal (NFC-e) roda independente do modo de impressão escolhido
+  if(_cupomFiscalAtivo) _emitirCupomFiscal(venda_id);
 
   const modo = configAtual.impressao_modo || 'perguntar';
 
@@ -4965,6 +5383,17 @@ function abrirModalImpressao(venda_id, payload, total){
     else if(dav)   imprimirDAV();
     else if(coz)   imprimirCozinha();
     return;
+  }
+
+  // Área do cupom fiscal no modal (modo "perguntar")
+  const areaFiscal = document.getElementById('imp-cupom-fiscal-area');
+  if(_cupomFiscalAtivo){
+    areaFiscal.style.display='block';
+    areaFiscal.innerHTML = '<div id="fiscal-status-'+venda_id+'" style="background:#f8fafc;border:1px solid var(--border2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:8px">'+
+      '<div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Emitindo NFC-e...</div>';
+  } else {
+    areaFiscal.style.display='none';
+    areaFiscal.innerHTML='';
   }
 
   // modo perguntar: abre modal normalmente
@@ -5167,6 +5596,40 @@ function abrirCancelarVenda(id, total, cliente, tipoPag){
   document.getElementById('modal-cancelar-venda').classList.add('open');
 }
 
+
+// ── ALTERAR FORMA DE PAGAMENTO ──────────────────────────────────────────────
+function abrirAlterarPagamento(id, tipoAtual){
+  const labels={dinheiro:'Dinheiro',cartao_credito:'Cartão Crédito',cartao_debito:'Cartão Débito',pix:'PIX',crediario:'Crediário'};
+  document.getElementById('ap-id').value = id;
+  document.getElementById('ap-senha').value = '';
+  document.getElementById('ap-erro').style.display = 'none';
+  const sel = document.getElementById('ap-novo-tipo');
+  // Seleciona automaticamente uma opção diferente da atual
+  for(const opt of sel.options){ if(opt.value===tipoAtual){ opt.disabled=true; } else { opt.disabled=false; } }
+  sel.value = Array.from(sel.options).find(o=>o.value!==tipoAtual)?.value || tipoAtual;
+  document.getElementById('ap-resumo').innerHTML=`
+    <div style="font-weight:700;color:#16a34a;margin-bottom:6px">💳 Venda #${id}</div>
+    <div style="font-size:12px"><b>Forma de pagamento atual:</b> ${labels[tipoAtual]||tipoAtual}</div>`;
+  document.getElementById('modal-alterar-pag').classList.add('open');
+}
+
+async function confirmarAlterarPagamento(){
+  const id = document.getElementById('ap-id').value;
+  const novo_tipo_pagamento = document.getElementById('ap-novo-tipo').value;
+  const senha = document.getElementById('ap-senha').value;
+  const erroEl = document.getElementById('ap-erro');
+  erroEl.style.display = 'none';
+  if(!senha){ erroEl.textContent='Informe a senha de autorização'; erroEl.style.display='block'; return; }
+  const res = await api('/vendas/alterar-pagamento','POST',Object.assign({id,novo_tipo_pagamento,senha}, _u()));
+  if(res&&res.ok){
+    document.getElementById('modal-alterar-pag').classList.remove('open');
+    toast('Forma de pagamento alterada com sucesso','warn');
+    await loadHistorico();
+  } else {
+    erroEl.textContent = (res&&res.erro)?res.erro:'Erro ao alterar forma de pagamento';
+    erroEl.style.display = 'block';
+  }
+}
 
 // ── EDITAR VENDA ─────────────────────────────────────────────────────────────
 let evProdutos = []; // cache de produtos para o modal de edição
@@ -5824,6 +6287,9 @@ async function loadFiscal(){
   document.getElementById('fis-prox-nfce').value=d.proximo_numero_nfce||1;
   document.getElementById('fis-csc-id').value=d.csc_id||'';
   document.getElementById('fis-csc-token').value=d.csc_token||'';
+  document.getElementById('fis-cupom-ativo').checked=!!d.cupom_fiscal_ativo;
+  document.getElementById('fis-provedor').value=d.provedor_fiscal||'focus_nfe';
+  document.getElementById('fis-provedor-token').value=d.provedor_token||'';
   var st=document.getElementById('fis-cert-status');
   if(d.certificado_arquivo) st.innerHTML='<span style="color:#16a34a;font-weight:700">✅ Certificado: '+d.certificado_arquivo+'</span>';
   else st.textContent='Nenhum certificado carregado';
@@ -5836,9 +6302,12 @@ async function salvarFiscal(){
     proximo_numero_nfe:document.getElementById('fis-prox-nfe').value,
     proximo_numero_nfce:document.getElementById('fis-prox-nfce').value,
     csc_id:document.getElementById('fis-csc-id').value,
-    csc_token:document.getElementById('fis-csc-token').value
+    csc_token:document.getElementById('fis-csc-token').value,
+    cupom_fiscal_ativo:document.getElementById('fis-cupom-ativo').checked,
+    provedor_fiscal:document.getElementById('fis-provedor').value,
+    provedor_token:document.getElementById('fis-provedor-token').value
   });
-  if(res&&res.ok) toast('Configuração fiscal salva!');
+  if(res&&res.ok){ toast('Configuração fiscal salva!'); await loadStatusCupomFiscal(); }
   else toast((res&&res.erro)||'Erro ao salvar','err');
 }
 async function uploadCertificado(){
@@ -6276,6 +6745,8 @@ async function abrirEditarProduto(id){
   document.getElementById('ep-un').value = p.unidades || 'un';
   document.getElementById('ep-custo').value = p.custo > 0 ? p.custo.toFixed(2) : '';
   document.getElementById('ep-markup').value = p.markup > 0 ? p.markup.toFixed(1) : '';
+  document.getElementById('ep-tem-adicionais').checked = !!p.tem_adicionais;
+  await _epCarregarAdicionais(p.id);
   document.getElementById('ep-codigo').value = p.codigo || '';
   // categoria
   const catSel = document.getElementById('ep-cat');
@@ -6396,6 +6867,8 @@ async function salvarEdicaoProduto(){
   const codigo = document.getElementById('ep-codigo').value.trim();
   const descricao = (document.getElementById('ep-descricao')||{}).value||'';
   const emojiVal = (document.getElementById('ep-emoji')||{}).value||'';
+  const temAdicEl = document.getElementById('ep-tem-adicionais');
+  const temAdic = temAdicEl ? (temAdicEl.checked?1:0) : 0;
   if(!id){toast('Erro: ID do produto não encontrado','err');return}
   if(!nome||isNaN(preco)||preco<=0){toast('Informe nome e preço de venda!','err');return}
   const payload = {
@@ -6409,7 +6882,8 @@ async function salvarEdicaoProduto(){
     markup,
     codigo,
     descricao,
-    emoji: emojiVal
+    emoji: emojiVal,
+    tem_adicionais: temAdic
   };
   if(editImgBase64 !== null) payload.imagem = editImgBase64;
   const res = await api('/produtos/atualizar','POST', payload);
@@ -6555,16 +7029,22 @@ async function cadastrarProduto(){
   const markup=parseFloat(document.getElementById('c-markup').value)||0;
   const codigo=document.getElementById('c-codigo').value.trim();
   const descricao=(document.getElementById('c-descricao')||{}).value||'';
+  const temAdic=document.getElementById('c-tem-adicionais').checked?1:0;
   if(!nome||isNaN(preco)||preco<=0){toast('Informe nome e preço de venda!','err');return}
   if(isNaN(qtd)){toast('Informe a quantidade!','err');return}
   const res=await api('/produtos','POST',{nome,preco,quantidade:qtd,unidades:un,categoria:cat,
-                                          custo,markup,imagem:imgBase64,codigo,descricao});
+                                          custo,markup,imagem:imgBase64,codigo,descricao,tem_adicionais:temAdic});
   if(res&&res.ok){
     for(const ing of _prodIngTemp){
       await api('/produtos/ingredientes','POST',{produto_id:res.id,ingrediente_id:ing.ingrediente_id,quantidade_usada:ing.quantidade_usada});
     }
+    for(const ad of _prodAdicTemp){
+      await api('/produtos/adicionais','POST',{produto_id:res.id,adicional_id:ad.id});
+    }
     ['c-nome','c-preco','c-qtd','c-custo','c-markup','c-codigo','c-descricao'].forEach(id=>{var e=document.getElementById(id);if(e)e.value=''});
+    document.getElementById('c-tem-adicionais').checked=false;
     _prodIngTemp=[];renderIngProduto();
+    _prodAdicTemp=[];renderAdicionaisAdmin('c');
     document.getElementById('markup-preview').style.display='none';
     removerImagem();
     await loadCategorias();
@@ -7614,8 +8094,8 @@ function abrirDescontoVenda(){
   });
 }
 
-function abrirDescontoItem(id){
-  const it = carrinho.find(x=>x.id===id);
+function abrirDescontoItem(chave){
+  const it = carrinho.find(x=>String(x._chave)===String(chave));
   if(!it) return;
   _modalDesconto({
     titulo: '🏷️ Desconto em "'+it.nome+'"',
@@ -8393,7 +8873,7 @@ async function fazerLogin(){
     _updateMobUser();
     _iniciarAutoRefresh();
     _restoreSidebarState();
-    loadProdutos(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa();
+    loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal();
     checkForUpdate();
   } else {
     err.textContent = d.erro||'Erro ao fazer login';
@@ -9010,7 +9490,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
       _updateMobUser();
       _iniciarAutoRefresh();
       updateSyncBadge();
-      loadProdutos(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa();
+      loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal();
       checkForUpdate();
       if(_pendingSyncCount>0) syncQueue();
       return;
