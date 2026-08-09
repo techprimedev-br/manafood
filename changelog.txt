@@ -1,21 +1,24 @@
+﻿## v4.6.8
+- Correção de Bugs, adição dos adicionais na aba de Estoque, atualição da aba fiscal incluindo NFCe para produção.
+
 ## v4.1.0
-- Cadastro de dados da empresa (CNPJ, IE, endereço)
-- Configuração fiscal (série NFe/NFCe, CSC, token)
+- Cadastro de dados da empresa (CNPJ, IE, endereÃ§o)
+- ConfiguraÃ§Ã£o fiscal (sÃ©rie NFe/NFCe, CSC, token)
 - Upload de certificado digital (.pfx)
-- Importação de XML de NFe (entrada de mercadoria)
-- Vinculação de itens do XML com produtos do sistema
-- Changelog nas atualizações (mostra novidades antes de atualizar)
-- Tunnel Cloudflare automático ao iniciar
+- ImportaÃ§Ã£o de XML de NFe (entrada de mercadoria)
+- VinculaÃ§Ã£o de itens do XML com produtos do sistema
+- Changelog nas atualizaÃ§Ãµes (mostra novidades antes de atualizar)
+- Tunnel Cloudflare automÃ¡tico ao iniciar
 
 ## v4.0.3
-- Correção de fuso horário em queries SQL
-- Auto-update sem dependência de Git
+- CorreÃ§Ã£o de fuso horÃ¡rio em queries SQL
+- Auto-update sem dependÃªncia de Git
 
 ## v4.0.2
-- Cardápio estilo iFood com fotos e carrinho WhatsApp
-- Sistema de promoções com preço promocional
+- CardÃ¡pio estilo iFood com fotos e carrinho WhatsApp
+- Sistema de promoÃ§Ãµes com preÃ§o promocional
 - Cashback e programa de pontos
-- Ingredientes com estoque e baixa automática
-- Reposição inteligente com previsão de demanda
-- Modo offline para vendas sem conexão
-- Correções de data (UTC → local)
+- Ingredientes com estoque e baixa automÃ¡tica
+- ReposiÃ§Ã£o inteligente com previsÃ£o de demanda
+- Modo offline para vendas sem conexÃ£o
+- CorreÃ§Ãµes de data (UTC â†’ local)
