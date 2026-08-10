@@ -1,4 +1,7 @@
-﻿## v4.8.1
+﻿## v4.8.2
+- agora clicar no logo/nome na sidebar (🍔 Maná Hambugueria) leva direto pra tela do PDV, igual clicar no botão "PDV" do menu. Só esse arquivo mudou dessa vez.
+
+## v4.8.1
 - Campo Observação no cardapio.
 
 ## v4.6.8
