@@ -986,6 +986,8 @@ body{{font-family:'Inter',-apple-system,sans-serif;background:#f5f5f5;color:#333
 .wpp-btn:active{{opacity:.9}}
 .name-input{{width:100%;padding:10px 14px;border:1.5px solid #eee;border-radius:10px;font-size:14px;margin-bottom:10px;outline:none}}
 .name-input:focus{{border-color:{cor}}}
+.obs-input{{width:100%;padding:10px 14px;border:1.5px solid #eee;border-radius:10px;font-size:14px;margin-bottom:10px;outline:none;font-family:inherit;resize:none}}
+.obs-input:focus{{border-color:{cor}}}
 footer{{text-align:center;padding:24px;font-size:11px;color:#bbb}}
 @media(max-width:480px){{.sec-g{{grid-template-columns:1fr 1fr;gap:8px}}.store-card{{margin:- 14px 12px 0;padding:16px}}.hero{{padding:30px 16px 24px}}.hero h1{{font-size:22px}}}}
 @media(max-width:360px){{.sec-g{{grid-template-columns:1fr}}}}
@@ -1011,6 +1013,7 @@ footer{{text-align:center;padding:24px;font-size:11px;color:#bbb}}
   <div class="drawer-footer">
     <div class="drawer-total"><span>Total</span><span id="cartTotal">R$ 0,00</span></div>
     <input class="name-input" id="custName" placeholder="Seu nome (opcional)">
+    <textarea class="obs-input" id="custObs" placeholder="Observação do pedido (opcional) — ex: sem cebola, ponto da carne, troco para..." rows="2"></textarea>
     <button class="wpp-btn" onclick="sendWhatsApp()">💬 Enviar pedido via WhatsApp</button>
   </div>
 </div>
@@ -1059,6 +1062,7 @@ function sendWhatsApp(){{
   var items=Object.keys(cart).filter(function(k){{return cart[k].qty>0}});
   if(!items.length){{alert('Adicione itens ao pedido!');return}}
   var nome=document.getElementById('custName').value.trim();
+  var obs=document.getElementById('custObs').value.trim();
   var total=0;
   var txt='*🛒 NOVO PEDIDO — '+loja+'*\\n';
   if(nome)txt+='👤 Cliente: *'+nome+'*\\n';
@@ -1069,6 +1073,7 @@ function sendWhatsApp(){{
     txt+=it.qty+'x '+it.name+' — '+fmt(sub)+'\\n';
   }});
   txt+='\\n*💰 Total: '+fmt(total)+'*\\n';
+  if(obs)txt+='\\n📝 Observação: '+obs+'\\n';
   txt+='\\n_Pedido enviado pelo cardápio digital_';
   var num=fone?'55'+fone:'';
   var url=num?'https://wa.me/'+num+'?text='+encodeURIComponent(txt):'https://wa.me/?text='+encodeURIComponent(txt);

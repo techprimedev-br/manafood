@@ -1,4 +1,7 @@
-﻿## v4.6.8
+﻿## v4.8.1
+- Campo Observação no cardapio.
+
+## v4.6.8
 - Correção de Bugs, adição dos adicionais na aba de Estoque, atualição da aba fiscal incluindo NFCe para produção.
 
 ## v4.1.0
