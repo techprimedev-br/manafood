@@ -11,6 +11,7 @@ import threading
 import time
 import base64
 import hashlib
+import re
 from pathlib import Path
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -102,6 +103,8 @@ def init_database():
         "ALTER TABLE produtos ADD COLUMN imagem TEXT DEFAULT ''",
         "ALTER TABLE vendas ADD COLUMN cliente TEXT DEFAULT ''",
         "ALTER TABLE vendas ADD COLUMN cliente_id INTEGER DEFAULT NULL",
+        "ALTER TABLE vendas ADD COLUMN usuario_id INTEGER DEFAULT NULL",
+        "ALTER TABLE vendas ADD COLUMN usuario_nome TEXT DEFAULT ''",
         "ALTER TABLE financeiro ADD COLUMN pagamento TEXT DEFAULT '-'",
         "ALTER TABLE contas ADD COLUMN cliente_id INTEGER DEFAULT NULL",
         "ALTER TABLE clientes ADD COLUMN marcadores TEXT DEFAULT ''",
@@ -201,6 +204,44 @@ def init_database():
         "CREATE TABLE IF NOT EXISTS adicionais (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, preco REAL NOT NULL DEFAULT 0, ativo INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
         "ALTER TABLE produtos ADD COLUMN tem_adicionais INTEGER DEFAULT 0",
         "ALTER TABLE itens_venda ADD COLUMN adicionais_json TEXT DEFAULT ''",
+        "ALTER TABLE itens_venda ADD COLUMN unidade_vendida_nome TEXT DEFAULT ''",
+        # Preço atacado (a partir de X unidades, aplica outro preço)
+        "ALTER TABLE produtos ADD COLUMN qtd_min_atacado INTEGER DEFAULT 0",
+        "ALTER TABLE produtos ADD COLUMN preco_atacado REAL DEFAULT 0",
+        # Vasilhame/casco retornável
+        "ALTER TABLE produtos ADD COLUMN tem_vasilhame INTEGER DEFAULT 0",
+        "ALTER TABLE produtos ADD COLUMN valor_vasilhame REAL DEFAULT 0",
+        "CREATE TABLE IF NOT EXISTS vasilhame_saldo (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER NOT NULL, produto_id INTEGER NOT NULL, saldo_pendente INTEGER DEFAULT 0, UNIQUE(cliente_id, produto_id))",
+        "CREATE TABLE IF NOT EXISTS vasilhame_movimentos (id INTEGER PRIMARY KEY AUTOINCREMENT, venda_id INTEGER DEFAULT NULL, cliente_id INTEGER NOT NULL, produto_id INTEGER NOT NULL, qtd_saida INTEGER DEFAULT 0, qtd_retorno INTEGER DEFAULT 0, saldo_resultante INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+        # Unidades de venda com conversão (ex: 1 Fardo = 12 Unidades, 1 Caixa = 24 Unidades)
+        "CREATE TABLE IF NOT EXISTS produto_unidades (id INTEGER PRIMARY KEY AUTOINCREMENT, produto_id INTEGER NOT NULL, nome TEXT NOT NULL, fator_conversao REAL NOT NULL DEFAULT 1, preco REAL NOT NULL DEFAULT 0, FOREIGN KEY(produto_id) REFERENCES produtos(id))",
+        # Rotas de entrega (agrupa vários pedidos numa mesma saída)
+        "CREATE TABLE IF NOT EXISTS rotas_entrega (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, data_rota DATE DEFAULT (date('now','localtime')), motorista TEXT DEFAULT '', status TEXT DEFAULT 'aberta', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+        "ALTER TABLE rotas_entrega ADD COLUMN veiculo_tipo TEXT DEFAULT 'moto'",
+        "CREATE TABLE IF NOT EXISTS rotas_entrega_paradas (id INTEGER PRIMARY KEY AUTOINCREMENT, rota_id INTEGER NOT NULL, venda_id INTEGER NOT NULL, ordem INTEGER DEFAULT 0, status TEXT DEFAULT 'pendente', FOREIGN KEY(rota_id) REFERENCES rotas_entrega(id), FOREIGN KEY(venda_id) REFERENCES vendas(id))",
+        # Pessoa Física / Jurídica — permite cadastrar fornecedores usando a mesma
+        # tela de Clientes (tipo='juridica' + CNPJ/IE/Razão Social).
+        "ALTER TABLE clientes ADD COLUMN tipo TEXT DEFAULT 'fisica'",
+        "ALTER TABLE clientes ADD COLUMN cnpj TEXT DEFAULT ''",
+        "ALTER TABLE clientes ADD COLUMN ie TEXT DEFAULT ''",
+        "ALTER TABLE clientes ADD COLUMN razao_social TEXT DEFAULT ''",
+        # Endereço estruturado (substitui o campo único 'endereco' por partes)
+        "ALTER TABLE clientes ADD COLUMN logradouro TEXT DEFAULT ''",
+        "ALTER TABLE clientes ADD COLUMN numero TEXT DEFAULT ''",
+        "ALTER TABLE clientes ADD COLUMN bairro TEXT DEFAULT ''",
+        "ALTER TABLE clientes ADD COLUMN cidade TEXT DEFAULT ''",
+        "ALTER TABLE clientes ADD COLUMN estado TEXT DEFAULT ''",
+        "ALTER TABLE clientes ADD COLUMN pais TEXT DEFAULT 'Brasil'",
+        "ALTER TABLE clientes ADD COLUMN regiao_entrega TEXT DEFAULT ''",
+        # Crediários/Convênios — agrupa clientes sob um mesmo acordo (ex: empresa parceira)
+        "ALTER TABLE clientes ADD COLUMN convenio_id INTEGER DEFAULT NULL",
+        "CREATE TABLE IF NOT EXISTS convenios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, responsavel TEXT DEFAULT '', telefone TEXT DEFAULT '', limite_credito REAL DEFAULT 0, observacao TEXT DEFAULT '', ativo INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+        "ALTER TABLE convenios ADD COLUMN tipo TEXT DEFAULT 'crediario'",
+        "ALTER TABLE convenios ADD COLUMN sem_limite INTEGER DEFAULT 0",
+        # Cliente pode usar o limite definido no convênio, ou ter um limite próprio
+        "ALTER TABLE clientes ADD COLUMN limite_tipo TEXT DEFAULT 'convenio'",
+        # Liga a entrada de XML ao fornecedor (cliente tipo='juridica') quando o CNPJ bate
+        "ALTER TABLE entradas_xml ADD COLUMN fornecedor_id INTEGER DEFAULT NULL",
         # Vínculo de qual adicional está disponível em qual produto
         # (o mesmo adicional do catálogo pode ser vinculado a vários produtos).
         "CREATE TABLE IF NOT EXISTS produto_adicionais (id INTEGER PRIMARY KEY AUTOINCREMENT, produto_id INTEGER NOT NULL, adicional_id INTEGER NOT NULL, FOREIGN KEY(produto_id) REFERENCES produtos(id), FOREIGN KEY(adicional_id) REFERENCES adicionais(id))",
@@ -245,7 +286,9 @@ def _gerar_codigo(c):
 
 def api_listar_produtos():
     conn = get_connection(); c = conn.cursor()
-    c.execute("SELECT * FROM produtos WHERE ativo=1 ORDER BY nome")
+    c.execute("""SELECT p.*,
+                 EXISTS(SELECT 1 FROM produto_unidades pu WHERE pu.produto_id=p.id) AS tem_unidades_extra
+                 FROM produtos p WHERE p.ativo=1 ORDER BY p.nome""")
     r = [dict(x) for x in c.fetchall()]; conn.close(); return r
 
 def api_buscar_produto_codigo(q):
@@ -280,13 +323,35 @@ def api_cadastrar_produto(data):
         codigo = _gerar_codigo(cur)
     descricao = data.get('descricao','')
     tem_adic = 1 if data.get('tem_adicionais') else 0
-    cur.execute("""INSERT INTO produtos (nome,preco,quantidade,unidades,categoria,imagem,custo,markup,codigo,descricao,tem_adicionais)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+    qtd_min_atacado = int(data.get('qtd_min_atacado',0) or 0)
+    preco_atacado   = float(data.get('preco_atacado',0) or 0)
+    tem_vasilhame   = 1 if data.get('tem_vasilhame') else 0
+    valor_vasilhame = float(data.get('valor_vasilhame',0) or 0)
+    cur.execute("""INSERT INTO produtos (nome,preco,quantidade,unidades,categoria,imagem,custo,markup,codigo,descricao,tem_adicionais,
+                   qtd_min_atacado,preco_atacado,tem_vasilhame,valor_vasilhame)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (data['nome'], preco, int(data['quantidade']),
-                 data.get('unidades','un'), data.get('categoria','Geral'), imagem, custo, markup, codigo, descricao, tem_adic))
+                 data.get('unidades','un'), data.get('categoria','Geral'), imagem, custo, markup, codigo, descricao, tem_adic,
+                 qtd_min_atacado, preco_atacado, tem_vasilhame, valor_vasilhame))
     conn.commit(); new_id = cur.lastrowid; conn.close()
     _auto_publicar_cardapio()
     return {"id": new_id, "ok": True, "codigo": codigo}
+
+def api_inativar_produto(data):
+    """Nunca apaga o produto de verdade (quebraria histórico de vendas/relatórios) —
+       sempre inativa (ativo=0). Só muda a mensagem conforme já teve movimentação ou não."""
+    pid = int(data['id'])
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT COUNT(*) AS n FROM itens_venda WHERE produto_id=?", (pid,))
+    qtd_vendas = c.fetchone()['n']
+    c.execute("UPDATE produtos SET ativo=0 WHERE id=?", (pid,))
+    conn.commit(); conn.close()
+    _auto_publicar_cardapio()
+    if qtd_vendas > 0:
+        return {"ok": True, "tinha_movimentacao": True, "qtd_vendas": qtd_vendas,
+                "msg": f"Produto inativado (tinha {qtd_vendas} venda(s) registrada(s), o histórico foi mantido)."}
+    return {"ok": True, "tinha_movimentacao": False, "qtd_vendas": 0,
+            "msg": "Produto inativado."}
 
 def api_atualizar_produto(data):
     conn = get_connection(); c = conn.cursor()
@@ -319,12 +384,20 @@ def api_atualizar_produto(data):
         descricao = data.get('descricao','')
         emoji_val = data.get('emoji','')
         tem_adic = 1 if data.get('tem_adicionais') else 0
+        qtd_min_atacado = int(data.get('qtd_min_atacado',0) or 0)
+        preco_atacado   = float(data.get('preco_atacado',0) or 0)
+        tem_vasilhame   = 1 if data.get('tem_vasilhame') else 0
+        valor_vasilhame = float(data.get('valor_vasilhame',0) or 0)
         if imagem is not None:
-            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,imagem=?,codigo=?,descricao=?,emoji=?,tem_adicionais=? WHERE id=?",
-                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, imagem, codigo, descricao, emoji_val, tem_adic, pid))
+            c.execute("""UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,imagem=?,codigo=?,descricao=?,emoji=?,tem_adicionais=?,
+                        qtd_min_atacado=?,preco_atacado=?,tem_vasilhame=?,valor_vasilhame=? WHERE id=?""",
+                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, imagem, codigo, descricao, emoji_val, tem_adic,
+                       qtd_min_atacado, preco_atacado, tem_vasilhame, valor_vasilhame, pid))
         else:
-            c.execute("UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,codigo=?,descricao=?,emoji=?,tem_adicionais=? WHERE id=?",
-                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, codigo, descricao, emoji_val, tem_adic, pid))
+            c.execute("""UPDATE produtos SET nome=?,preco=?,quantidade=?,unidades=?,categoria=?,custo=?,markup=?,codigo=?,descricao=?,emoji=?,tem_adicionais=?,
+                        qtd_min_atacado=?,preco_atacado=?,tem_vasilhame=?,valor_vasilhame=? WHERE id=?""",
+                      (data['nome'], preco, qtd, data.get('unidades','un'), data.get('categoria','Geral'), custo, markup, codigo, descricao, emoji_val, tem_adic,
+                       qtd_min_atacado, preco_atacado, tem_vasilhame, valor_vasilhame, pid))
     elif 'quantidade' in data and 'custo' not in data:
         c.execute("UPDATE produtos SET quantidade=? WHERE id=?", (int(data['quantidade']), pid))
     elif 'custo' in data:
@@ -395,6 +468,135 @@ def api_produto_adicionais(produto_id):
     r = [dict(x) for x in c.fetchall()]
     conn.close(); return r
 
+# ─── UNIDADES DE VENDA COM CONVERSÃO (ex: Fardo = 12 un, Caixa = 24 un) ───────
+
+def api_produto_unidades(produto_id):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT * FROM produto_unidades WHERE produto_id=? ORDER BY fator_conversao", (produto_id,))
+    r = [dict(x) for x in c.fetchall()]
+    conn.close(); return r
+
+def api_cadastrar_unidade_produto(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("INSERT INTO produto_unidades (produto_id,nome,fator_conversao,preco) VALUES (?,?,?,?)",
+              (int(data['produto_id']), data['nome'], float(data['fator_conversao']), float(data.get('preco',0) or 0)))
+    conn.commit(); uid = c.lastrowid; conn.close()
+    return {"ok": True, "id": uid}
+
+def api_excluir_unidade_produto(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("DELETE FROM produto_unidades WHERE id=?", (int(data['id']),))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+# ─── VASILHAME / CASCO RETORNÁVEL ──────────────────────────────────────────────
+
+def api_registrar_movimento_vasilhame(data):
+    cliente_id = int(data['cliente_id'])
+    produto_id = int(data['produto_id'])
+    qtd_saida   = int(data.get('qtd_saida',0) or 0)
+    qtd_retorno = int(data.get('qtd_retorno',0) or 0)
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT saldo_pendente FROM vasilhame_saldo WHERE cliente_id=? AND produto_id=?", (cliente_id, produto_id))
+    row = c.fetchone()
+    saldo_atual = row['saldo_pendente'] if row else 0
+    novo_saldo = max(0, saldo_atual + qtd_saida - qtd_retorno)
+    if row:
+        c.execute("UPDATE vasilhame_saldo SET saldo_pendente=? WHERE cliente_id=? AND produto_id=?", (novo_saldo, cliente_id, produto_id))
+    else:
+        c.execute("INSERT INTO vasilhame_saldo (cliente_id,produto_id,saldo_pendente) VALUES (?,?,?)", (cliente_id, produto_id, novo_saldo))
+    c.execute("""INSERT INTO vasilhame_movimentos (venda_id,cliente_id,produto_id,qtd_saida,qtd_retorno,saldo_resultante)
+                 VALUES (?,?,?,?,?,?)""",
+              (data.get('venda_id'), cliente_id, produto_id, qtd_saida, qtd_retorno, novo_saldo))
+    conn.commit(); conn.close()
+    return {"ok": True, "saldo_pendente": novo_saldo}
+
+def api_listar_saldo_vasilhame(params=None):
+    params = params or {}
+    conn = get_connection(); c = conn.cursor()
+    q = """SELECT vs.*, cl.nome AS cliente_nome, p.nome AS produto_nome, p.valor_vasilhame
+           FROM vasilhame_saldo vs
+           JOIN clientes cl ON cl.id = vs.cliente_id
+           JOIN produtos p  ON p.id  = vs.produto_id
+           WHERE vs.saldo_pendente > 0"""
+    args = []
+    if params.get('cliente_id'):
+        q += " AND vs.cliente_id=?"; args.append(int(params['cliente_id']))
+    q += " ORDER BY cl.nome, p.nome"
+    c.execute(q, args)
+    r = [dict(x) for x in c.fetchall()]
+    conn.close(); return r
+
+def api_historico_vasilhame_cliente(cliente_id):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("""SELECT vm.*, p.nome AS produto_nome FROM vasilhame_movimentos vm
+                 JOIN produtos p ON p.id=vm.produto_id
+                 WHERE vm.cliente_id=? ORDER BY vm.id DESC LIMIT 100""", (cliente_id,))
+    r = [dict(x) for x in c.fetchall()]
+    conn.close(); return r
+
+# ─── ROTAS DE ENTREGA ───────────────────────────────────────────────────────────
+
+def api_listar_rotas(params=None):
+    params = params or {}
+    conn = get_connection(); c = conn.cursor()
+    q = "SELECT * FROM rotas_entrega WHERE 1=1"
+    args = []
+    if params.get('status'): q += " AND status=?"; args.append(params['status'])
+    if params.get('data'):   q += " AND data_rota=?"; args.append(params['data'])
+    q += " ORDER BY id DESC LIMIT 100"
+    c.execute(q, args)
+    rotas = [dict(x) for x in c.fetchall()]
+    for r in rotas:
+        c.execute("""SELECT rp.id AS parada_id, rp.ordem, rp.status AS parada_status, v.id AS venda_id,
+                     v.total, v.nome_cliente_balcao, v.cliente_id, cl.nome AS cliente_nome, cl.logradouro, cl.numero, cl.bairro, cl.regiao_entrega
+                     FROM rotas_entrega_paradas rp
+                     JOIN vendas v ON v.id = rp.venda_id
+                     LEFT JOIN clientes cl ON cl.id = v.cliente_id
+                     WHERE rp.rota_id=? ORDER BY rp.ordem""", (r['id'],))
+        r['paradas'] = [dict(x) for x in c.fetchall()]
+    conn.close(); return rotas
+
+def api_criar_rota(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("INSERT INTO rotas_entrega (nome,motorista,data_rota,veiculo_tipo) VALUES (?,?,COALESCE(?,date('now','localtime')),?)",
+              (data['nome'], data.get('motorista',''), data.get('data_rota') or None, data.get('veiculo_tipo','moto')))
+    conn.commit(); rid = c.lastrowid; conn.close()
+    return {"ok": True, "id": rid}
+
+def api_adicionar_parada_rota(data):
+    conn = get_connection(); c = conn.cursor()
+    rota_id = int(data['rota_id']); venda_id = int(data['venda_id'])
+    c.execute("SELECT COUNT(*) AS n FROM rotas_entrega_paradas WHERE rota_id=?", (rota_id,))
+    ordem = c.fetchone()['n']
+    c.execute("INSERT INTO rotas_entrega_paradas (rota_id,venda_id,ordem) VALUES (?,?,?)", (rota_id, venda_id, ordem))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+def api_atualizar_status_parada(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("UPDATE rotas_entrega_paradas SET status=? WHERE id=?", (data['status'], int(data['id'])))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+def api_atualizar_status_rota(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("UPDATE rotas_entrega SET status=? WHERE id=?", (data['status'], int(data['id'])))
+    conn.commit(); conn.close()
+    return {"ok": True}
+
+def api_vendas_sem_rota():
+    """Vendas do tipo entrega, não canceladas, que ainda não estão em nenhuma rota — pra escolher o que adicionar."""
+    conn = get_connection(); c = conn.cursor()
+    c.execute("""SELECT v.id, v.total, v.nome_cliente_balcao, v.cliente_id, v.data_venda,
+                 cl.nome AS cliente_nome, cl.logradouro, cl.numero, cl.bairro, cl.regiao_entrega
+                 FROM vendas v LEFT JOIN clientes cl ON cl.id=v.cliente_id
+                 WHERE v.tipo_atendimento='entrega' AND v.cancelada=0 AND v.descartada=0
+                 AND v.id NOT IN (SELECT venda_id FROM rotas_entrega_paradas)
+                 ORDER BY v.id DESC LIMIT 100""")
+    r = [dict(x) for x in c.fetchall()]
+    conn.close(); return r
+
 def api_vincular_adicional(data):
     conn = get_connection(); c = conn.cursor()
     pid = int(data['produto_id']); aid = int(data['adicional_id'])
@@ -458,10 +660,14 @@ def api_listar_clientes():
         SELECT cl.*,
                COALESCE(cl.status_cliente, 'ativo') AS status_cliente,
                COUNT(DISTINCT CASE WHEN v.cancelada=0 AND v.descartada=0 THEN v.id END) AS total_compras,
-               COALESCE(SUM(CASE WHEN ct.status='pendente' THEN ct.valor ELSE 0 END),0) AS saldo_devedor
+               COALESCE(SUM(CASE WHEN ct.status='pendente' THEN ct.valor ELSE 0 END),0) AS saldo_devedor,
+               (SELECT COUNT(*) FROM entradas_xml ex WHERE ex.fornecedor_id=cl.id) AS fornecedor_qtd_compras,
+               (SELECT COALESCE(SUM(valor_total),0) FROM entradas_xml ex WHERE ex.fornecedor_id=cl.id) AS fornecedor_total_gasto,
+               cv.nome AS convenio_nome, cv.tipo AS convenio_tipo, cv.sem_limite AS convenio_sem_limite, cv.limite_credito AS convenio_limite
         FROM clientes cl
         LEFT JOIN vendas v  ON v.cliente_id = cl.id
         LEFT JOIN contas ct ON ct.cliente_id = cl.id AND ct.tipo='receber'
+        LEFT JOIN convenios cv ON cv.id = cl.convenio_id
         WHERE cl.ativo=1
         GROUP BY cl.id ORDER BY cl.nome
     """)
@@ -482,25 +688,114 @@ def api_buscar_cliente(cliente_id):
     cl['contas'] = [dict(x) for x in c.fetchall()]
     c.execute("SELECT * FROM historico_cliente WHERE cliente_id=? ORDER BY data_evento DESC LIMIT 50", (cliente_id,))
     cl['historico'] = [dict(x) for x in c.fetchall()]
+    if cl.get('tipo') == 'juridica':
+        c.execute("""SELECT id,data_emissao,valor_total,processado,chave_acesso
+                     FROM entradas_xml WHERE fornecedor_id=? ORDER BY data_emissao DESC LIMIT 50""", (cliente_id,))
+        cl['compras_fornecedor'] = [dict(x) for x in c.fetchall()]
+        c.execute("SELECT COUNT(*) as qtd, COALESCE(SUM(valor_total),0) as total FROM entradas_xml WHERE fornecedor_id=?", (cliente_id,))
+        resumo = dict(c.fetchone())
+        cl['fornecedor_qtd_compras'] = resumo['qtd']
+        cl['fornecedor_total_gasto'] = resumo['total']
     conn.close(); return cl
+
+def _montar_endereco_completo(data):
+    """Monta a string 'endereco' (usada em cupom, cardápio, etc.) a partir dos campos estruturados."""
+    partes = []
+    log = data.get('logradouro','').strip()
+    num = data.get('numero','').strip()
+    if log: partes.append(log + (', '+num if num else ''))
+    if data.get('bairro','').strip(): partes.append(data['bairro'].strip())
+    cidade_uf = ' - '.join(filter(None, [data.get('cidade','').strip(), data.get('estado','').strip()]))
+    if cidade_uf: partes.append(cidade_uf)
+    return ', '.join(partes) if partes else data.get('endereco','')
 
 def api_cadastrar_cliente(data):
     conn = get_connection(); c = conn.cursor()
-    c.execute("INSERT INTO clientes (nome,telefone,cpf,endereco,observacao,limite_credito,marcadores) VALUES (?,?,?,?,?,?,?)",
+    endereco = _montar_endereco_completo(data)
+    c.execute("""INSERT INTO clientes (nome,telefone,cpf,endereco,observacao,limite_credito,marcadores,tipo,cnpj,ie,razao_social,
+                 logradouro,numero,bairro,cidade,estado,pais,regiao_entrega,convenio_id,limite_tipo)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
               (data['nome'], data.get('telefone',''), data.get('cpf',''),
-               data.get('endereco',''), data.get('observacao',''),
-               float(data.get('limite_credito',0)), data.get('marcadores','')))
+               endereco, data.get('observacao',''),
+               float(data.get('limite_credito',0)), data.get('marcadores',''),
+               data.get('tipo','fisica'), data.get('cnpj',''), data.get('ie',''),
+               data.get('razao_social',''),
+               data.get('logradouro',''), data.get('numero',''), data.get('bairro',''),
+               data.get('cidade',''), data.get('estado',''), data.get('pais','Brasil'),
+               data.get('regiao_entrega',''),
+               int(data['convenio_id']) if data.get('convenio_id') else None,
+               data.get('limite_tipo','convenio')))
     conn.commit(); new_id = c.lastrowid; conn.close()
     return {"id": new_id, "ok": True}
 
 def api_atualizar_cliente(data):
     conn = get_connection(); c = conn.cursor()
-    c.execute("UPDATE clientes SET nome=?,telefone=?,cpf=?,endereco=?,observacao=?,limite_credito=?,marcadores=?,status_cliente=? WHERE id=?",
+    endereco = _montar_endereco_completo(data)
+    c.execute("""UPDATE clientes SET nome=?,telefone=?,cpf=?,endereco=?,observacao=?,limite_credito=?,marcadores=?,status_cliente=?,
+                 tipo=?,cnpj=?,ie=?,razao_social=?,logradouro=?,numero=?,bairro=?,cidade=?,estado=?,pais=?,regiao_entrega=?,convenio_id=?,limite_tipo=? WHERE id=?""",
               (data['nome'], data.get('telefone',''), data.get('cpf',''),
-               data.get('endereco',''), data.get('observacao',''),
+               endereco, data.get('observacao',''),
                float(data.get('limite_credito',0)), data.get('marcadores',''),
-               data.get('status_cliente','ativo'), int(data['id'])))
+               data.get('status_cliente','ativo'),
+               data.get('tipo','fisica'), data.get('cnpj',''), data.get('ie',''),
+               data.get('razao_social',''),
+               data.get('logradouro',''), data.get('numero',''), data.get('bairro',''),
+               data.get('cidade',''), data.get('estado',''), data.get('pais','Brasil'),
+               data.get('regiao_entrega',''),
+               int(data['convenio_id']) if data.get('convenio_id') else None,
+               data.get('limite_tipo','convenio'), int(data['id'])))
     conn.commit(); conn.close(); return {"ok": True}
+
+def api_listar_fornecedores():
+    """Clientes cadastrados como Pessoa Jurídica — usados como fornecedores na importação de XML."""
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT id,nome,cnpj,ie,razao_social,telefone,endereco FROM clientes WHERE ativo=1 AND tipo='juridica' ORDER BY nome")
+    r = [dict(x) for x in c.fetchall()]; conn.close(); return r
+
+# ─── CREDIÁRIOS / CONVÊNIOS ────────────────────────────────────────────────────
+
+def api_listar_convenios():
+    conn = get_connection(); c = conn.cursor()
+    c.execute("""SELECT cv.*,
+                 (SELECT COUNT(*) FROM clientes cl WHERE cl.convenio_id=cv.id AND cl.ativo=1) AS qtd_clientes,
+                 (SELECT COALESCE(SUM(ct.valor),0) FROM contas ct
+                    JOIN clientes cl ON cl.id=ct.cliente_id
+                    WHERE cl.convenio_id=cv.id AND ct.status='pendente' AND ct.tipo='receber') AS saldo_devedor
+                 FROM convenios cv WHERE cv.ativo=1 ORDER BY cv.nome""")
+    r = [dict(x) for x in c.fetchall()]; conn.close(); return r
+
+def api_cadastrar_convenio(data):
+    conn = get_connection(); c = conn.cursor()
+    sem_limite = 1 if data.get('sem_limite') else 0
+    limite = 0 if sem_limite else float(data.get('limite_credito',0) or 0)
+    c.execute("""INSERT INTO convenios (nome,responsavel,telefone,limite_credito,observacao,tipo,sem_limite) VALUES (?,?,?,?,?,?,?)""",
+              (data['nome'], data.get('responsavel',''), data.get('telefone',''),
+               limite, data.get('observacao',''), data.get('tipo','crediario'), sem_limite))
+    conn.commit(); new_id = c.lastrowid; conn.close()
+    return {"id": new_id, "ok": True}
+
+def api_atualizar_convenio(data):
+    conn = get_connection(); c = conn.cursor()
+    sem_limite = 1 if data.get('sem_limite') else 0
+    limite = 0 if sem_limite else float(data.get('limite_credito',0) or 0)
+    c.execute("""UPDATE convenios SET nome=?,responsavel=?,telefone=?,limite_credito=?,observacao=?,tipo=?,sem_limite=? WHERE id=?""",
+              (data['nome'], data.get('responsavel',''), data.get('telefone',''),
+               limite, data.get('observacao',''), data.get('tipo','crediario'), sem_limite, int(data['id'])))
+    conn.commit(); conn.close(); return {"ok": True}
+
+def api_excluir_convenio(data):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("UPDATE convenios SET ativo=0 WHERE id=?", (int(data['id']),))
+    # Desvincula clientes que estavam nesse convênio (não deleta o cliente, só solta o vínculo)
+    c.execute("UPDATE clientes SET convenio_id=NULL WHERE convenio_id=?", (int(data['id']),))
+    conn.commit(); conn.close(); return {"ok": True}
+
+def api_clientes_do_convenio(convenio_id):
+    conn = get_connection(); c = conn.cursor()
+    c.execute("""SELECT id,nome,telefone,cpf,
+                 (SELECT COALESCE(SUM(valor),0) FROM contas WHERE cliente_id=clientes.id AND status='pendente' AND tipo='receber') AS saldo_devedor
+                 FROM clientes WHERE convenio_id=? AND ativo=1 ORDER BY nome""", (convenio_id,))
+    r = [dict(x) for x in c.fetchall()]; conn.close(); return r
 
 def api_alterar_status_cliente(data):
     conn = get_connection(); c = conn.cursor()
@@ -589,6 +884,10 @@ def api_registrar_venda(data):
              'aberta' if tipo_atend in ('mesa','local') else 'fechada',
              offline_id))
         venda_id=c.lastrowid
+        # Usuário que fez a venda (pra relatórios e contas a receber)
+        uid_v = data.get('_uid'); unome_v = data.get('_unome','')
+        if uid_v:
+            c.execute("UPDATE vendas SET usuario_id=?, usuario_nome=? WHERE id=?", (int(uid_v), unome_v, venda_id))
         # Cartão bandeira e NSU
         cartao_b = data.get('cartao_bandeira','')
         cartao_n = data.get('cartao_nsu','')
@@ -611,8 +910,9 @@ def api_registrar_venda(data):
             sub = item['quantidade']*item['preco_unitario'] + valor_adicionais - desc_item
             obs_item = item.get('observacao','')
             adicionais_json = json.dumps(adicionais_item, ensure_ascii=False) if adicionais_item else ''
-            c.execute("INSERT INTO itens_venda (venda_id,produto_id,quantidade,preco_unitario,subtotal,observacao,desconto_item,adicionais_json) VALUES (?,?,?,?,?,?,?,?)",
-                      (venda_id,item['produto_id'],item['quantidade'],item['preco_unitario'],sub,obs_item,desc_item,adicionais_json))
+            unidade_vendida = item.get('unidade_vendida_nome','')
+            c.execute("INSERT INTO itens_venda (venda_id,produto_id,quantidade,preco_unitario,subtotal,observacao,desconto_item,adicionais_json,unidade_vendida_nome) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (venda_id,item['produto_id'],item['quantidade'],item['preco_unitario'],sub,obs_item,desc_item,adicionais_json,unidade_vendida))
             c.execute("UPDATE produtos SET quantidade=quantidade-? WHERE id=?",
                       (item['quantidade'],item['produto_id']))
             c.execute("SELECT ingrediente_id,quantidade_usada FROM produto_ingredientes WHERE produto_id=?",(item['produto_id'],))
@@ -1889,9 +2189,17 @@ def api_importar_xml(data):
                 conn.close()
                 return {"ok": False, "erro": "XML já importado (chave duplicada)"}
 
-        c.execute("""INSERT INTO entradas_xml (chave_acesso,fornecedor,cnpj_fornecedor,data_emissao,valor_total,xml_conteudo)
-                     VALUES (?,?,?,?,?,?)""",
-                  (chave, fornecedor, cnpj_forn, data_emissao, valor_total, xml_content))
+        # Tenta vincular automaticamente a um fornecedor (cliente PJ) já cadastrado pelo CNPJ
+        fornecedor_id = None
+        if cnpj_forn:
+            cnpj_limpo = re.sub(r'\D', '', cnpj_forn)
+            c.execute("SELECT id FROM clientes WHERE tipo='juridica' AND REPLACE(REPLACE(REPLACE(cnpj,'.',''),'/',''),'-','')=?", (cnpj_limpo,))
+            row = c.fetchone()
+            if row: fornecedor_id = row['id']
+
+        c.execute("""INSERT INTO entradas_xml (chave_acesso,fornecedor,cnpj_fornecedor,data_emissao,valor_total,xml_conteudo,fornecedor_id)
+                     VALUES (?,?,?,?,?,?,?)""",
+                  (chave, fornecedor, cnpj_forn, data_emissao, valor_total, xml_content, fornecedor_id))
         entrada_id = c.lastrowid
 
         # Parseia itens (det)
@@ -1924,15 +2232,32 @@ def api_importar_xml(data):
 
         conn.commit(); conn.close()
         return {"ok": True, "entrada_id": entrada_id, "fornecedor": fornecedor,
+                "cnpj_fornecedor": cnpj_forn, "fornecedor_id": fornecedor_id,
                 "chave": chave, "valor_total": valor_total, "itens": itens, "qtd_itens": len(itens)}
     except ET.ParseError:
         return {"ok": False, "erro": "XML mal formado"}
     except Exception as e:
         return {"ok": False, "erro": str(e)}
 
-def api_listar_entradas_xml():
+def api_listar_entradas_xml(params=None):
+    params = params or {}
     conn = get_connection(); c = conn.cursor()
-    c.execute("SELECT * FROM entradas_xml ORDER BY id DESC LIMIT 50")
+    q = """SELECT ex.*, cl.nome AS fornecedor_cadastrado_nome
+           FROM entradas_xml ex LEFT JOIN clientes cl ON cl.id = ex.fornecedor_id
+           WHERE 1=1"""
+    args = []
+    data_inicio = params.get('data_inicio','')
+    data_fim    = params.get('data_fim','')
+    fornecedor  = params.get('fornecedor','')
+    fornecedor_id = params.get('fornecedor_id','')
+    processado  = params.get('processado','')
+    if data_inicio: q += " AND ex.data_emissao >= ?"; args.append(data_inicio)
+    if data_fim:    q += " AND ex.data_emissao <= ?"; args.append(data_fim)
+    if fornecedor:  q += " AND (ex.fornecedor LIKE ? OR cl.nome LIKE ?)"; args += [f'%{fornecedor}%', f'%{fornecedor}%']
+    if fornecedor_id: q += " AND ex.fornecedor_id=?"; args.append(int(fornecedor_id))
+    if processado != '': q += " AND ex.processado=?"; args.append(int(processado))
+    q += " ORDER BY ex.id DESC LIMIT 200"
+    c.execute(q, args)
     entradas = [dict(r) for r in c.fetchall()]
     for e in entradas:
         c.execute("SELECT * FROM itens_entrada_xml WHERE entrada_id=?", (e['id'],))
@@ -2191,8 +2516,9 @@ def api_editar_venda(data):
             sub = item['quantidade'] * item['preco_unitario'] + valor_adicionais - desc_item
             novo_total += sub
             adicionais_json = json.dumps(adicionais_item, ensure_ascii=False) if adicionais_item else ''
-            c.execute("INSERT INTO itens_venda (venda_id,produto_id,quantidade,preco_unitario,subtotal,observacao,desconto_item,adicionais_json) VALUES (?,?,?,?,?,?,?,?)",
-                      (venda_id, item['produto_id'], item['quantidade'], item['preco_unitario'], sub, item.get('observacao',''), desc_item, adicionais_json))
+            unidade_vendida = item.get('unidade_vendida_nome','')
+            c.execute("INSERT INTO itens_venda (venda_id,produto_id,quantidade,preco_unitario,subtotal,observacao,desconto_item,adicionais_json,unidade_vendida_nome) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (venda_id, item['produto_id'], item['quantidade'], item['preco_unitario'], sub, item.get('observacao',''), desc_item, adicionais_json, unidade_vendida))
             c.execute("UPDATE produtos SET quantidade=quantidade-? WHERE id=?", (item['quantidade'], item['produto_id']))
         updates.append("total=?"); campos.append(novo_total)
         antes["novo_total"] = novo_total
@@ -2460,6 +2786,7 @@ DEFAULTS_CONFIG = {
     'pix_ativo':      '1',
     'nome_empresa':   'Maná Food',
     'taxa_entrega':   '0',
+    'pedido_minimo_entrega': '0',
     'tempo_entrega':  '',
     'area_entrega':   '',
     'qtd_mesas':      '10',
@@ -2945,6 +3272,75 @@ def api_relatorio(params):
     }
 
 
+def api_relatorio_vendas_por_item(params):
+    """Relatório completo de vendas por item (não só top 10) — com filtro de período."""
+    conn = get_connection(); c = conn.cursor()
+    dt_ini = params.get('de',''); dt_fim = params.get('ate','')
+    where_v = ' AND v.cancelada=0 AND v.descartada=0'
+    args = []
+    if dt_ini: where_v += ' AND date(v.data_venda)>=?'; args.append(dt_ini)
+    if dt_fim: where_v += ' AND date(v.data_venda)<=?'; args.append(dt_fim)
+    c.execute(f"""SELECT p.id AS produto_id, p.nome, p.categoria,
+                         SUM(iv.quantidade) AS qtd_vendida,
+                         SUM(iv.subtotal) AS receita,
+                         AVG(iv.preco_unitario) AS preco_medio,
+                         COUNT(DISTINCT iv.venda_id) AS qtd_vendas
+                  FROM itens_venda iv
+                  JOIN produtos p ON p.id=iv.produto_id
+                  JOIN vendas v   ON v.id=iv.venda_id
+                  WHERE 1=1{where_v}
+                  GROUP BY p.id ORDER BY receita DESC""", args)
+    itens = [dict(r) for r in c.fetchall()]
+    total_receita = sum(i['receita'] for i in itens) or 1
+    for i in itens:
+        i['participacao_pct'] = round(i['receita']/total_receita*100, 1)
+    conn.close()
+    return {'itens': itens, 'total_receita': total_receita, 'total_itens': len(itens)}
+
+
+def api_relatorio_posicao_estoque(params=None):
+    """Foto do estoque atual: quantidade, custo, valor total parado em cada produto."""
+    conn = get_connection(); c = conn.cursor()
+    c.execute("""SELECT id, nome, categoria, quantidade, unidades, custo, preco,
+                        (quantidade*custo) AS valor_custo_total,
+                        (quantidade*preco) AS valor_venda_total
+                 FROM produtos WHERE ativo=1 ORDER BY categoria, nome""")
+    produtos = [dict(r) for r in c.fetchall()]
+    total_custo = sum(p['valor_custo_total'] for p in produtos)
+    total_venda = sum(p['valor_venda_total'] for p in produtos)
+    conn.close()
+    return {'produtos': produtos, 'total_custo': total_custo, 'total_venda': total_venda,
+            'total_itens': len(produtos), 'lucro_potencial': total_venda-total_custo}
+
+
+def api_relatorio_contas_receber(params):
+    """Contas a receber com filtros de convênio/cliente, datas, e quem vendeu."""
+    conn = get_connection(); c = conn.cursor()
+    q = """SELECT ct.id, ct.descricao, ct.valor, ct.vencimento, ct.status, ct.created_at AS data_emissao,
+                  cl.nome AS cliente_nome, cl.id AS cliente_id, cv.nome AS convenio_nome, cv.id AS convenio_id,
+                  v.usuario_nome AS vendedor_nome
+           FROM contas ct
+           LEFT JOIN clientes cl  ON cl.id = ct.cliente_id
+           LEFT JOIN convenios cv ON cv.id = cl.convenio_id
+           LEFT JOIN vendas v     ON v.id  = ct.venda_id
+           WHERE ct.tipo='receber'"""
+    args = []
+    if params.get('convenio_id'): q += " AND cl.convenio_id=?"; args.append(int(params['convenio_id']))
+    if params.get('cliente_nome'): q += " AND cl.nome LIKE ?"; args.append(f"%{params['cliente_nome']}%")
+    if params.get('emissao_de'):  q += " AND date(ct.created_at)>=?"; args.append(params['emissao_de'])
+    if params.get('emissao_ate'): q += " AND date(ct.created_at)<=?"; args.append(params['emissao_ate'])
+    if params.get('vencimento_de'):  q += " AND ct.vencimento>=?"; args.append(params['vencimento_de'])
+    if params.get('vencimento_ate'): q += " AND ct.vencimento<=?"; args.append(params['vencimento_ate'])
+    if params.get('status'): q += " AND ct.status=?"; args.append(params['status'])
+    q += " ORDER BY ct.vencimento ASC"
+    c.execute(q, args)
+    contas = [dict(r) for r in c.fetchall()]
+    total = sum(x['valor'] for x in contas)
+    total_pendente = sum(x['valor'] for x in contas if x['status']=='pendente')
+    conn.close()
+    return {'contas': contas, 'total': total, 'total_pendente': total_pendente, 'qtd': len(contas)}
+
+
 def api_get_config():
     conn = get_connection(); c = conn.cursor()
     c.execute("SELECT chave, valor FROM config")
@@ -3100,7 +3496,11 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
         if path == '/api/fiscal':
             self.send_json(api_get_fiscal()); return
         if path == '/api/xml/entradas':
-            self.send_json(api_listar_entradas_xml()); return
+            self.send_json(api_listar_entradas_xml(params)); return
+        if path == '/api/vasilhame/saldo':
+            self.send_json(api_listar_saldo_vasilhame(params)); return
+        if path == '/api/rotas-entrega':
+            self.send_json(api_listar_rotas(params)); return
         if path == '/api/check-update':
             self.send_json(api_check_update()); return
         if path == '/api/aplicar-update':
@@ -3122,10 +3522,25 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
                 pid=int(path.split('/')[3])
                 self.send_json(api_produto_adicionais(pid)); return
             except: pass
+        if path.startswith('/api/produtos/') and path.endswith('/unidades'):
+            try:
+                pid=int(path.split('/')[3])
+                self.send_json(api_produto_unidades(pid)); return
+            except: pass
         if path.startswith('/api/vendas/') and path.endswith('/status-fiscal'):
             try:
                 vid=int(path.split('/')[3])
                 self.send_json(api_status_nota_venda(vid)); return
+            except: pass
+        if path.startswith('/api/vasilhame/historico/'):
+            try:
+                cid=int(path.split('/')[4])
+                self.send_json(api_historico_vasilhame_cliente(cid)); return
+            except: pass
+        if path.startswith('/api/convenios/') and path.endswith('/clientes'):
+            try:
+                cvid=int(path.split('/')[3])
+                self.send_json(api_clientes_do_convenio(cvid)); return
             except: pass
         if path == '/api/caixa/apuracao':
             self.send_json(api_apuracao_caixa(params)); return
@@ -3158,6 +3573,9 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             '/api/cmv':          api_relatorio_cmv,
             '/api/mesa/historico': api_mesa_historico,
             '/api/caixa/apuracao': api_apuracao_caixa,
+            '/api/relatorio/vendas-item':      api_relatorio_vendas_por_item,
+            '/api/relatorio/posicao-estoque':  api_relatorio_posicao_estoque,
+            '/api/relatorio/contas-receber':   api_relatorio_contas_receber,
         }
         if path in param_routes:
             self.send_json(param_routes[path](params)); return
@@ -3166,7 +3584,9 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
                 '/api/vendas':api_listar_vendas,'/api/cardapio':api_cardapio_publico,'/api/cupons':api_listar_cupons,'/api/backups':api_listar_backups,'/api/financeiro':api_financeiro,
                 '/api/contas':api_listar_contas,'/api/config':api_get_config,
                 '/api/caixa':lambda p=None: api_status_caixa(p),'/api/caixa/abertos':api_caixas_abertos,'/api/caixa/historico':api_historico_caixas,'/api/mesas/ativas':api_mesas_ativas,
-                '/api/usuarios':api_listar_usuarios,'/api/adicionais':api_listar_adicionais}
+                '/api/usuarios':api_listar_usuarios,'/api/adicionais':api_listar_adicionais,
+                '/api/fornecedores':api_listar_fornecedores,'/api/convenios':api_listar_convenios,
+                '/api/rotas-entrega/vendas-pendentes':api_vendas_sem_rota}
         fn=routes.get(path)
         if fn: self.send_json(fn())
         else:  self.send_json({"erro":"Rota nao encontrada"},404)
@@ -3179,6 +3599,7 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
         path=urlparse(self.path).path
         routes={
             '/api/produtos':           api_cadastrar_produto,
+            '/api/produtos/inativar':  api_inativar_produto,
             '/api/categorias':         api_cadastrar_categoria,
             '/api/categorias/atualizar': api_atualizar_categoria,
             '/api/categorias/excluir':   api_excluir_categoria,
@@ -3187,7 +3608,17 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             '/api/adicionais/excluir':   api_excluir_adicional,
             '/api/produtos/adicionais':          api_vincular_adicional,
             '/api/produtos/adicionais/remover':  api_desvincular_adicional,
+            '/api/produtos/unidades':            api_cadastrar_unidade_produto,
+            '/api/produtos/unidades/remover':    api_excluir_unidade_produto,
             '/api/vendas/emitir-nfce':            api_emitir_nfce,
+            '/api/vasilhame/movimento':            api_registrar_movimento_vasilhame,
+            '/api/rotas-entrega':                  api_criar_rota,
+            '/api/rotas-entrega/parada':           api_adicionar_parada_rota,
+            '/api/rotas-entrega/parada/status':    api_atualizar_status_parada,
+            '/api/rotas-entrega/status':            api_atualizar_status_rota,
+            '/api/convenios':                     api_cadastrar_convenio,
+            '/api/convenios/atualizar':           api_atualizar_convenio,
+            '/api/convenios/excluir':             api_excluir_convenio,
             '/api/produtos/atualizar': api_atualizar_produto,
             '/api/clientes':           api_cadastrar_cliente,
             '/api/clientes/atualizar': api_atualizar_cliente,

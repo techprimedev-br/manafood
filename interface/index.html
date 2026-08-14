@@ -887,6 +887,36 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         </div>
       </div>
 
+      <div class="form-group full" style="border:1px dashed var(--border2);border-radius:8px;padding:10px">
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>📦 Unidades de venda com conversão</span>
+        </label>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Pra vender em fardo, caixa, pacote etc. além da unidade. O estoque é sempre baixado na unidade base.</div>
+        <div id="ep-lista-unidades" style="margin:6px 0;font-size:12px"></div>
+        <div style="display:flex;gap:6px">
+          <input id="ep-un-nome" placeholder="Ex: Fardo (12un)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+          <input id="ep-un-fator" type="number" min="1" step="1" placeholder="Qtd na unidade base" style="width:130px;padding:6px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+          <input id="ep-un-preco" type="number" min="0" step="0.01" placeholder="Preço do fardo" style="width:100px;padding:6px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+          <button type="button" onclick="cadastrarUnidadeProduto()" style="padding:6px 12px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">+ Add</button>
+        </div>
+      </div>
+
+      <div class="form-group full" style="border:1px dashed var(--border2);border-radius:8px;padding:10px">
+        <label style="margin-bottom:8px;display:block">💰 Preço atacado</label>
+        <div class="cad-form" style="grid-template-columns:1fr 1fr;gap:8px">
+          <div class="form-group" style="margin:0"><label style="font-size:11px">A partir de quantas unidades</label><input id="ep-qtd-atacado" type="number" min="0" placeholder="Ex: 24 (0 = desativado)"></div>
+          <div class="form-group" style="margin:0"><label style="font-size:11px">Preço atacado (por unidade)</label><input id="ep-preco-atacado" type="number" min="0" step="0.01" placeholder="0,00"></div>
+        </div>
+      </div>
+
+      <div class="form-group full" style="border:1px dashed var(--border2);border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <input type="checkbox" id="ep-tem-vasilhame" style="width:16px;height:16px" onchange="onVasilhameChange('ep')">
+          <label for="ep-tem-vasilhame" style="margin:0;cursor:pointer">🍾 Este produto tem vasilhame/casco retornável (garrafa, engradado)</label>
+        </div>
+        <div class="form-group" id="ep-valor-vasilhame-wrap" style="display:none;margin:0"><label style="font-size:11px">Valor do vasilhame (por unidade)</label><input id="ep-valor-vasilhame" type="number" min="0" step="0.01" placeholder="0,00"></div>
+      </div>
+
       <div class="form-group full">
         <label>🧂 Ingredientes do produto</label>
         <div id="ep-ing-lista" style="margin-bottom:6px"></div>
@@ -1137,6 +1167,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
     </button>
     <button class="nav-btn nav-gerente" data-perfil="gerente" onclick="showPanel('entregas',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="20" r="1"/><circle cx="5" cy="20" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 001.96-1.59L23 6H6"/><path d="M17 12l3-3-3-3"/></svg>Entregas
+    </button>
+    <button class="nav-btn nav-gerente" data-perfil="gerente" onclick="showPanel('rotas',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>Rotas de Entrega
     </button>
     <button class="nav-btn nav-gerente" data-perfil="gerente" onclick="showPanel('caixa',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>Caixa
@@ -1634,6 +1667,34 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
                   <button type="button" onclick="cadastrarAdicional('c')" style="padding:6px 12px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">+ Add</button>
                 </div>
               </div>
+
+              <div class="form-group full" style="border:1px dashed var(--border2);border-radius:8px;padding:10px">
+                <label style="display:block;margin-bottom:6px">📦 Unidades de venda com conversão</label>
+                <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Pra vender em fardo, caixa, pacote etc. além da unidade base.</div>
+                <div id="c-lista-unidades" style="margin:6px 0;font-size:12px"></div>
+                <div style="display:flex;gap:6px">
+                  <input id="c-un-nome" placeholder="Ex: Fardo (12un)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                  <input id="c-un-fator" type="number" min="1" step="1" placeholder="Qtd na unid. base" style="width:110px;padding:6px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                  <input id="c-un-preco" type="number" min="0" step="0.01" placeholder="Preço" style="width:90px;padding:6px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                  <button type="button" onclick="cadastrarUnidadeProduto('c')" style="padding:6px 12px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">+ Add</button>
+                </div>
+              </div>
+
+              <div class="form-group full" style="border:1px dashed var(--border2);border-radius:8px;padding:10px">
+                <label style="margin-bottom:8px;display:block">💰 Preço atacado</label>
+                <div class="cad-form" style="grid-template-columns:1fr 1fr;gap:8px">
+                  <div class="form-group" style="margin:0"><label style="font-size:11px">A partir de quantas unidades</label><input id="c-qtd-atacado" type="number" min="0" placeholder="Ex: 24 (0 = desativado)"></div>
+                  <div class="form-group" style="margin:0"><label style="font-size:11px">Preço atacado (por unidade)</label><input id="c-preco-atacado" type="number" min="0" step="0.01" placeholder="0,00"></div>
+                </div>
+              </div>
+
+              <div class="form-group full" style="border:1px dashed var(--border2);border-radius:8px;padding:10px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                  <input type="checkbox" id="c-tem-vasilhame" style="width:16px;height:16px" onchange="onVasilhameChange('c')">
+                  <label for="c-tem-vasilhame" style="margin:0;cursor:pointer">🍾 Este produto tem vasilhame/casco retornável</label>
+                </div>
+                <div class="form-group" id="c-valor-vasilhame-wrap" style="display:none;margin:0"><label style="font-size:11px">Valor do vasilhame (por unidade)</label><input id="c-valor-vasilhame" type="number" min="0" step="0.01" placeholder="0,00"></div>
+              </div>
               <div class="form-group full">
                 <label>🧂 Ingredientes do produto</label>
                 <div id="c-ing-lista" style="margin-bottom:6px"></div>
@@ -1681,11 +1742,20 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       <div class="tabs">
         <button class="tab-btn active" onclick="showClienteTab('lista',this)">Lista de clientes</button>
         <button class="tab-btn" id="cl-tab-novo" onclick="showClienteTab('form',this)">+ Novo cliente</button>
+        <button class="tab-btn" onclick="showClienteTab('enderecos',this)">📍 Endereços</button>
+        <button class="tab-btn" onclick="showClienteTab('vasilhame',this)">🍾 Vasilhame</button>
       </div>
 
       <!-- LISTA -->
       <div class="subtab active" id="cl-subtab-lista">
-        <input class="search-bar" id="cl-search" placeholder="🔍  Buscar por nome, telefone ou CPF..." oninput="filtrarClientes()">
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <input class="search-bar" id="cl-search" placeholder="🔍  Buscar por nome, telefone ou CPF/CNPJ..." oninput="filtrarClientes()" style="flex:1;min-width:200px;margin-bottom:0">
+          <div style="display:flex;gap:4px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:3px">
+            <button type="button" class="cl-tipo-filtro-btn active" data-tipo-filtro="" onclick="setFiltroTipoCliente('',this)" style="padding:6px 12px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">Todos</button>
+            <button type="button" class="cl-tipo-filtro-btn" data-tipo-filtro="fisica" onclick="setFiltroTipoCliente('fisica',this)" style="padding:6px 12px;border-radius:6px;border:none;background:transparent;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer">👤 Clientes</button>
+            <button type="button" class="cl-tipo-filtro-btn" data-tipo-filtro="juridica" onclick="setFiltroTipoCliente('juridica',this)" style="padding:6px 12px;border-radius:6px;border:none;background:transparent;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer">🏢 Fornecedores</button>
+          </div>
+        </div>
         <div class="card" style="padding:0;overflow:hidden">
           <table class="tbl">
             <thead><tr>
@@ -1707,11 +1777,55 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
           <div id="cl-form-titulo" style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:16px">Novo cliente</div>
           <input type="hidden" id="clf-id">
           <div class="cad-form">
-            <div class="form-group full"><label>Nome completo *</label><input id="clf-nome" placeholder="ex: João da Silva"></div>
+            <div class="form-group full">
+              <label>Tipo de cadastro</label>
+              <div style="display:flex;gap:8px">
+                <label style="display:flex;align-items:center;gap:5px;padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;flex:1;justify-content:center" id="clf-tipo-fisica-lbl">
+                  <input type="radio" name="clf-tipo" value="fisica" id="clf-tipo-fisica" checked onchange="onTipoClienteChange()"> 👤 Pessoa Física
+                </label>
+                <label style="display:flex;align-items:center;gap:5px;padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;flex:1;justify-content:center" id="clf-tipo-juridica-lbl">
+                  <input type="radio" name="clf-tipo" value="juridica" id="clf-tipo-juridica" onchange="onTipoClienteChange()"> 🏢 Pessoa Jurídica (fornecedor)
+                </label>
+              </div>
+            </div>
+            <div class="form-group full" id="clf-nome-wrap"><label id="clf-nome-label">Nome completo *</label><input id="clf-nome" placeholder="ex: João da Silva"></div>
+            <div class="form-group full" id="clf-razao-wrap" style="display:none"><label>Razão Social *</label><input id="clf-razao" placeholder="ex: ABC Distribuidora de Alimentos LTDA"></div>
+            <div class="form-group" id="clf-cpf-wrap"><label>CPF</label><input id="clf-cpf" placeholder="000.000.000-00"></div>
+            <div class="form-group" id="clf-cnpj-wrap" style="display:none"><label>CNPJ</label><input id="clf-cnpj" placeholder="00.000.000/0000-00"></div>
+            <div class="form-group" id="clf-ie-wrap" style="display:none">
+              <label>Inscrição Estadual</label>
+              <input id="clf-ie" placeholder="Nº da IE">
+              <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-weight:400;font-size:12px;cursor:pointer">
+                <input type="checkbox" id="clf-ie-isento" onchange="onIeIsentoChange()"> Isento de Inscrição Estadual
+              </label>
+            </div>
             <div class="form-group"><label>Telefone / WhatsApp</label><input id="clf-tel" placeholder="(00) 00000-0000"></div>
-            <div class="form-group"><label>CPF</label><input id="clf-cpf" placeholder="000.000.000-00"></div>
-            <div class="form-group full"><label>Endereço</label><input id="clf-end" placeholder="Rua, número, bairro"></div>
-            <div class="form-group"><label>Limite crediário R$</label><input id="clf-lim" type="number" step="0.01" placeholder="0,00"></div>
+            <div class="form-group full" style="border:1px dashed var(--border2);border-radius:8px;padding:12px;margin-top:4px">
+              <label style="margin-bottom:8px;display:block">📍 Endereço</label>
+              <div class="cad-form" style="grid-template-columns:2fr 1fr;gap:8px">
+                <div class="form-group" style="margin:0"><label style="font-size:11px">Logradouro</label><input id="clf-logradouro" placeholder="Rua, avenida..."></div>
+                <div class="form-group" style="margin:0"><label style="font-size:11px">Número</label><input id="clf-numero" placeholder="Nº"></div>
+                <div class="form-group" style="margin:0"><label style="font-size:11px">Bairro</label><input id="clf-bairro" placeholder="Bairro"></div>
+                <div class="form-group" style="margin:0"><label style="font-size:11px">Cidade</label><input id="clf-cidade" placeholder="Cidade"></div>
+                <div class="form-group" style="margin:0"><label style="font-size:11px">Estado (UF)</label><input id="clf-estado" placeholder="Ex: BA" maxlength="2" style="text-transform:uppercase"></div>
+                <div class="form-group" style="margin:0"><label style="font-size:11px">País</label><input id="clf-pais" placeholder="Brasil" value="Brasil"></div>
+                <div class="form-group full" style="margin:0"><label style="font-size:11px">Região de entrega</label><input id="clf-regiao-entrega" placeholder="Ex: Zona Norte, Centro..."></div>
+              </div>
+            </div>
+            <div class="form-group" id="clf-lim-wrap"><label>Limite crediário R$</label><input id="clf-lim" type="number" step="0.01" placeholder="0,00"></div>
+            <div class="form-group" id="clf-convenio-wrap"><label>Crediário/Convênio</label><select id="clf-convenio" onchange="onConvenioClienteChange()"><option value="">Nenhum</option></select></div>
+            <div class="form-group full" id="clf-limite-tipo-wrap" style="display:none;background:#f8fafc;padding:10px;border-radius:8px;border:1px solid var(--border2)">
+              <label style="margin-bottom:6px;display:block">Qual limite usar?</label>
+              <div style="display:flex;gap:8px;margin-bottom:8px">
+                <label style="display:flex;align-items:center;gap:5px;padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;flex:1;justify-content:center;font-weight:400;font-size:13px">
+                  <input type="radio" name="clf-limite-tipo" value="convenio" id="clf-limite-tipo-convenio" checked onchange="onLimiteTipoChange()"> Limite do convênio
+                </label>
+                <label style="display:flex;align-items:center;gap:5px;padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;flex:1;justify-content:center;font-weight:400;font-size:13px">
+                  <input type="radio" name="clf-limite-tipo" value="proprio" id="clf-limite-tipo-proprio" onchange="onLimiteTipoChange()"> Limite próprio
+                </label>
+              </div>
+              <div id="clf-limite-convenio-info" style="font-size:12px;color:var(--text2)"></div>
+            </div>
             <div class="form-group"><label>Status</label>
               <select id="clf-status" class="status-select status-ativo-sel" onchange="onStatusFormChange(this)">
                 <option value="ativo">✅ Ativo</option>
@@ -1720,7 +1834,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
               </select>
             </div>
             <div class="form-group full"><label>Observações</label><textarea id="clf-obs" placeholder="Anotações sobre o cliente" style="min-height:56px"></textarea></div>
-            <div class="form-group full">
+            <div class="form-group full" id="clf-marcadores-wrap">
               <label>Marcadores</label>
               <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:4px" id="clf-marcadores-btns">
                 <span class="marc-toggle marc-verde"  data-marc="bom_pagador"        onclick="toggleMarcador(this)">✅ Bom pagador</span>
@@ -1772,7 +1886,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
           </div>
           <div style="display:flex;gap:8px;margin-top:20px">
             <button onclick="editarClienteDetalhe()" class="confirm-btn" style="margin-top:0;flex:1">✏️ Editar dados</button>
-            <button onclick="abrirEditarMarcadores()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #C9A84C;background:var(--accent-lt);font-size:14px;font-weight:700;cursor:pointer;color:var(--accent)">🏷️ Marcadores</button>
+            <button onclick="abrirEditarMarcadores()" id="cl-det-btn-marcadores" style="flex:1;padding:11px;border-radius:8px;border:1px solid #C9A84C;background:var(--accent-lt);font-size:14px;font-weight:700;cursor:pointer;color:var(--accent)">🏷️ Marcadores</button>
             <button onclick="excluirClienteDetalhe()" style="padding:11px 16px;border-radius:8px;border:1px solid #f09595;background:#2a0000;font-size:14px;font-weight:700;cursor:pointer;color:#e05c5c">🗑️</button>
           </div>
         </div>
@@ -1801,6 +1915,46 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
                 <div class="empty">Sem movimentos</div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ENDEREÇOS -->
+      <div class="subtab" id="cl-subtab-enderecos">
+        <input class="search-bar" id="end-search" placeholder="🔍  Buscar por nome, cidade, bairro ou região..." oninput="filtrarEnderecos()">
+        <div class="card" style="padding:0">
+          <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr><th>Nome</th><th>Logradouro</th><th>Bairro</th><th>Cidade/UF</th><th>Região de entrega</th></tr></thead>
+            <tbody id="enderecos-tbody"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- VASILHAME -->
+      <div class="subtab" id="cl-subtab-vasilhame">
+        <div class="card" style="max-width:560px;margin-bottom:16px">
+          <div class="card-title">🍾 Registrar movimento de vasilhame</div>
+          <div class="cad-form">
+            <div class="form-group full"><label>Cliente</label>
+              <select id="vs-cliente"><option value="">Selecione...</option></select>
+            </div>
+            <div class="form-group full"><label>Produto</label>
+              <select id="vs-produto"><option value="">Selecione...</option></select>
+            </div>
+            <div class="form-group"><label>Qtd. saiu agora (venda)</label><input id="vs-saida" type="number" min="0" value="0"></div>
+            <div class="form-group"><label>Qtd. retornou agora</label><input id="vs-retorno" type="number" min="0" value="0"></div>
+          </div>
+          <button onclick="registrarMovimentoVasilhame()" class="confirm-btn" style="width:100%;margin-top:12px">💾 Registrar movimento</button>
+        </div>
+        <div class="card" style="padding:0">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--text)">📋 Saldo de vasilhame em aberto</div>
+          <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr><th>Cliente</th><th>Produto</th><th>Qtd. pendente</th><th>Valor estimado</th></tr></thead>
+            <tbody id="vasilhame-tbody"><tr><td colspan="4"><div class="loading"><div class="spinner"></div></div></td></tr></tbody>
+          </table>
           </div>
         </div>
       </div>
@@ -1844,6 +1998,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       <div class="tabs">
         <button class="tab-btn active" onclick="showContaTab('receber',this)">A Receber</button>
         <button class="tab-btn" onclick="showContaTab('pagar',this)">A Pagar</button>
+        <button class="tab-btn" onclick="showContaTab('convenios',this)">🤝 Crediários/Convênios</button>
         <button class="tab-btn" onclick="showContaTab('nova',this)">+ Nova conta</button>
       </div>
       <div class="subtab active" id="subtab-receber">
@@ -1856,6 +2011,38 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         <div class="card" style="padding:0;overflow:hidden">
           <table class="tbl"><thead><tr><th>Descrição</th><th>Fornecedor</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ação</th></tr></thead>
           <tbody id="lista-pagar"></tbody></table>
+        </div>
+      </div>
+      <div class="subtab" id="subtab-convenios">
+        <div class="card" style="max-width:520px;margin-bottom:16px">
+          <div class="card-title" id="cv-form-titulo">🤝 Novo crediário/convênio</div>
+          <input type="hidden" id="cv-id">
+          <div class="cad-form">
+            <div class="form-group full"><label>Nome *</label><input id="cv-nome" placeholder="ex: Empresa Alpha, Convênio Prefeitura..."></div>
+            <div class="form-group"><label>Tipo</label>
+              <select id="cv-tipo">
+                <option value="crediario">📋 Crediário (fiado individual)</option>
+                <option value="convenio">🤝 Convênio (acordo com empresa/instituição)</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Responsável</label><input id="cv-responsavel" placeholder="Nome do contato"></div>
+            <div class="form-group"><label>Telefone</label><input id="cv-telefone" placeholder="(00) 00000-0000"></div>
+            <div class="form-group">
+              <label>Limite de crédito R$</label>
+              <input id="cv-limite" type="number" step="0.01" placeholder="0,00">
+              <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-weight:400;font-size:12px;cursor:pointer">
+                <input type="checkbox" id="cv-sem-limite" onchange="onSemLimiteConvenioChange()"> Sem limite (crédito livre)
+              </label>
+            </div>
+            <div class="form-group full"><label>Observações</label><textarea id="cv-obs" placeholder="Anotações sobre o convênio" style="min-height:56px"></textarea></div>
+          </div>
+          <button onclick="salvarConvenio()" class="confirm-btn" id="cv-btn-salvar" style="width:100%;margin-top:12px">💾 Cadastrar convênio</button>
+        </div>
+        <div class="card" style="padding:0">
+          <div style="overflow-x:auto">
+          <table class="tbl"><thead><tr><th>Nome</th><th>Responsável</th><th>Clientes vinculados</th><th>Limite</th><th>Saldo devedor</th><th>Ação</th></tr></thead>
+          <tbody id="lista-convenios"><tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+          </div>
         </div>
       </div>
       <div class="subtab" id="subtab-nova">
@@ -2181,6 +2368,35 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       </div>
     </div>
 
+    <!-- ROTAS DE ENTREGA -->
+    <div class="panel" id="panel-rotas">
+      <div class="panel-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>Rotas de Entrega
+      </div>
+      <div class="card" style="max-width:520px;margin-bottom:16px">
+        <div class="card-title">🗺️ Nova rota</div>
+        <div class="cad-form" style="grid-template-columns:2fr 1fr;gap:8px">
+          <div class="form-group" style="margin:0"><label>Nome da rota</label><input id="rt-nome" placeholder="Ex: Rota Centro - Manhã"></div>
+          <div class="form-group" style="margin:0"><label>Veículo</label>
+            <select id="rt-veiculo" onchange="document.getElementById('rt-motorista-label').textContent = this.value==='moto' ? 'Piloto' : 'Motorista'">
+              <option value="moto">🏍️ Moto</option>
+              <option value="carro">🚗 Carro</option>
+            </select>
+          </div>
+          <div class="form-group full" style="margin:0"><label id="rt-motorista-label">Piloto</label><input id="rt-motorista" placeholder="Nome"></div>
+        </div>
+        <button onclick="criarRota()" class="confirm-btn" style="width:100%;margin-top:12px">➕ Criar rota</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--text)">📦 Entregas aguardando rota</div>
+          <div id="rt-pendentes"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+        <div id="rt-lista-rotas"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
     <div class="panel" id="panel-historico">
       <div class="panel-title">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Histórico de vendas
@@ -2280,8 +2496,13 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       <!-- Abas -->
       <div class="rel-tabs">
         <button class="rel-tab active" onclick="showRelTab('vendas',this)">📊 Vendas Geral</button>
+        <button class="rel-tab"        onclick="showRelTab('venditem',this)">🛒 Vendas por Item</button>
         <button class="rel-tab"        onclick="showRelTab('pagamentos',this)">💳 Forma de Pagamento</button>
         <button class="rel-tab"        onclick="showRelTab('contas',this)">📋 Contas a Pagar/Receber</button>
+        <button class="rel-tab"        onclick="showRelTab('receberdet',this)">🧾 Contas a Receber (detalhado)</button>
+        <button class="rel-tab"        onclick="showRelTab('estoque',this)">📦 Posição de Estoque</button>
+        <button class="rel-tab"        onclick="showRelTab('reposicaorel',this)">🔄 Reposição</button>
+        <button class="rel-tab"        onclick="showRelTab('cmvrel',this)">💰 CMV</button>
         <button class="rel-tab"        onclick="showRelTab('clientes',this)">👥 Clientes</button>
       </div>
 
@@ -2349,6 +2570,102 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         </div>
         <div class="rel-section-title">⏰ Vencendo nos próximos 7 dias</div>
         <div id="rel-proximos-venc"><div class="empty">Nenhum vencimento próximo</div></div>
+      </div>
+
+      <!-- VENDAS POR ITEM -->
+      <div class="rel-sub" id="rel-venditem">
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px">
+          <button class="btn-sm btn-baixar" onclick="exportarVendasPorItem('excel')">📊 Excel</button>
+          <button class="btn-sm btn-baixar" onclick="exportarVendasPorItem('pdf')">📄 PDF</button>
+        </div>
+        <div class="rel-kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
+          <div class="rel-kpi"><div class="rel-kpi-label">Itens diferentes vendidos</div><div class="rel-kpi-val" id="rvi-qtd">—</div></div>
+          <div class="rel-kpi"><div class="rel-kpi-label">Receita total</div><div class="rel-kpi-val" id="rvi-receita">—</div></div>
+        </div>
+        <div class="card" style="padding:0">
+          <div style="overflow-x:auto">
+          <table class="tbl"><thead><tr><th>Produto</th><th>Categoria</th><th>Qtd. vendida</th><th>Preço médio</th><th>Receita</th><th>% do total</th></tr></thead>
+          <tbody id="rel-venditem-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTAS A RECEBER DETALHADO -->
+      <div class="rel-sub" id="rel-receberdet">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;background:#f8fafc;border:1px solid var(--border2);border-radius:10px;padding:10px">
+          <div class="form-group" style="flex:1;min-width:150px;margin:0"><label style="font-size:11px">Convênio</label>
+            <select id="rd-f-convenio" style="font-size:12px;padding:6px 8px"><option value="">Todos</option></select>
+          </div>
+          <div class="form-group" style="flex:1;min-width:150px;margin:0"><label style="font-size:11px">Nome do cliente</label><input id="rd-f-cliente" placeholder="Buscar por nome..." style="font-size:12px;padding:6px 8px"></div>
+          <div class="form-group" style="min-width:130px;margin:0"><label style="font-size:11px">Emissão de</label><input type="date" id="rd-f-emissao-de" style="font-size:12px;padding:6px 8px"></div>
+          <div class="form-group" style="min-width:130px;margin:0"><label style="font-size:11px">Emissão até</label><input type="date" id="rd-f-emissao-ate" style="font-size:12px;padding:6px 8px"></div>
+          <div class="form-group" style="min-width:130px;margin:0"><label style="font-size:11px">Vencimento de</label><input type="date" id="rd-f-venc-de" style="font-size:12px;padding:6px 8px"></div>
+          <div class="form-group" style="min-width:130px;margin:0"><label style="font-size:11px">Vencimento até</label><input type="date" id="rd-f-venc-ate" style="font-size:12px;padding:6px 8px"></div>
+          <div class="form-group" style="min-width:120px;margin:0"><label style="font-size:11px">Status</label>
+            <select id="rd-f-status" style="font-size:12px;padding:6px 8px">
+              <option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:end;gap:6px">
+            <button onclick="loadRelatorioContasReceber()" style="padding:8px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">🔍 Filtrar</button>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div class="rel-kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));flex:1">
+            <div class="rel-kpi"><div class="rel-kpi-label">Total no filtro</div><div class="rel-kpi-val" id="rd-total">—</div></div>
+            <div class="rel-kpi" style="border-color:#e05c5c"><div class="rel-kpi-label">Pendente</div><div class="rel-kpi-val" style="color:#e05c5c" id="rd-pendente">—</div></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-sm btn-baixar" onclick="exportarContasReceber('excel')">📊 Excel</button>
+            <button class="btn-sm btn-baixar" onclick="exportarContasReceber('pdf')">📄 PDF</button>
+          </div>
+        </div>
+        <div class="card" style="padding:0">
+          <div style="overflow-x:auto">
+          <table class="tbl"><thead><tr><th>Emissão</th><th>Vencimento</th><th>Devedor</th><th>Convênio</th><th>Vendedor</th><th>Valor</th><th>Status</th></tr></thead>
+          <tbody id="rel-receberdet-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- POSIÇÃO DE ESTOQUE -->
+      <div class="rel-sub" id="rel-estoque">
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px">
+          <button class="btn-sm btn-baixar" onclick="exportarPosicaoEstoque('excel')">📊 Excel</button>
+          <button class="btn-sm btn-baixar" onclick="exportarPosicaoEstoque('pdf')">📄 PDF</button>
+        </div>
+        <div class="rel-kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
+          <div class="rel-kpi"><div class="rel-kpi-label">Itens em estoque</div><div class="rel-kpi-val" id="rpe-itens">—</div></div>
+          <div class="rel-kpi"><div class="rel-kpi-label">Valor em custo</div><div class="rel-kpi-val" id="rpe-custo">—</div></div>
+          <div class="rel-kpi"><div class="rel-kpi-label">Valor potencial de venda</div><div class="rel-kpi-val" id="rpe-venda">—</div></div>
+          <div class="rel-kpi" style="border-color:var(--accent)"><div class="rel-kpi-label">Lucro potencial</div><div class="rel-kpi-val" id="rpe-lucro">—</div></div>
+        </div>
+        <div class="card" style="padding:0">
+          <div style="overflow-x:auto">
+          <table class="tbl"><thead><tr><th>Produto</th><th>Categoria</th><th>Qtd.</th><th>Custo unit.</th><th>Preço venda</th><th>Valor em custo</th><th>Valor potencial</th></tr></thead>
+          <tbody id="rel-estoque-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPOSIÇÃO (atalho pro painel completo) -->
+      <div class="rel-sub" id="rel-reposicaorel">
+        <div class="card" style="text-align:center;padding:32px">
+          <div style="font-size:32px;margin-bottom:8px">🔄</div>
+          <div style="font-weight:700;margin-bottom:6px">Relatório de Reposição</div>
+          <div style="color:var(--text2);font-size:13px;margin-bottom:16px">A ferramenta completa de reposição (com previsão de demanda e marcação de compra) tem tela própria, com mais espaço pra trabalhar.</div>
+          <button onclick="showPanel('reposicao', document.querySelector('.nav-btn[onclick*=reposicao]'))" style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer">Abrir Reposição de Estoque →</button>
+        </div>
+      </div>
+
+      <!-- CMV (atalho pro painel completo) -->
+      <div class="rel-sub" id="rel-cmvrel">
+        <div class="card" style="text-align:center;padding:32px">
+          <div style="font-size:32px;margin-bottom:8px">💰</div>
+          <div style="font-weight:700;margin-bottom:6px">CMV — Custo da Mercadoria Vendida</div>
+          <div style="color:var(--text2);font-size:13px;margin-bottom:16px">O relatório completo de CMV tem tela própria, com análise por produto e por período.</div>
+          <button onclick="showPanel('cmv', document.querySelector('.nav-btn[onclick*=cmv]'))" style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer">Abrir CMV →</button>
+        </div>
       </div>
 
       <!-- ABA CLIENTES -->
@@ -2645,6 +2962,22 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       <!-- Histórico -->
       <div class="card" style="max-width:800px">
         <div class="card-title">📚 XMLs Importados</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;background:#f8fafc;border:1px solid var(--border2);border-radius:10px;padding:10px">
+          <div class="form-group" style="flex:1;min-width:130px;margin:0"><label style="font-size:11px">Data início</label><input type="date" id="xml-filtro-data-ini" style="font-size:12px;padding:6px 8px"></div>
+          <div class="form-group" style="flex:1;min-width:130px;margin:0"><label style="font-size:11px">Data fim</label><input type="date" id="xml-filtro-data-fim" style="font-size:12px;padding:6px 8px"></div>
+          <div class="form-group" style="flex:2;min-width:180px;margin:0"><label style="font-size:11px">Fornecedor</label><input id="xml-filtro-fornecedor" placeholder="Nome do fornecedor" style="font-size:12px;padding:6px 8px"></div>
+          <div class="form-group" style="flex:1;min-width:120px;margin:0"><label style="font-size:11px">Status</label>
+            <select id="xml-filtro-status" style="font-size:12px;padding:6px 8px">
+              <option value="">Todos</option>
+              <option value="1">✅ Processado</option>
+              <option value="0">⏳ Pendente</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:end;gap:6px">
+            <button onclick="loadHistoricoXML()" style="padding:8px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🔍 Filtrar</button>
+            <button onclick="limparFiltrosXml()" style="padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer;white-space:nowrap">✕ Limpar</button>
+          </div>
+        </div>
         <div id="xml-historico"><div class="loading"><div class="spinner"></div></div></div>
       </div>
     </div>
@@ -3244,6 +3577,7 @@ function showPanel(id,btn){
   if(id==='usuarios') loadUsuarios();
   if(id==='log') loadLog();
   if(id==='entregas'){ _initEntregasPanel(); loadEntregas(); }
+  if(id==='rotas'){ loadRotas(); loadPendentesRota(); }
   if(id==='cardapio'){ loadCardapioConfig(); }
   if(id==='backup'){ loadListaBackups(); }
   if(id==='cmv'){
@@ -3280,6 +3614,115 @@ function showContaTab(id,btn){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('subtab-'+id).classList.add('active');
   btn.classList.add('active');
+  if(id==='convenios') loadConvenios();
+}
+
+// ── CREDIÁRIOS / CONVÊNIOS ─────────────────────────────────────────────────────
+var convenios=[];
+async function loadConvenios(){
+  const data=await api('/convenios'); if(!data) return;
+  convenios=data;
+  _preencherSelectConvenio();
+  const tb=document.getElementById('lista-convenios');
+  if(!tb) return;
+  if(!data.length){tb.innerHTML='<tr><td colspan="6"><div class="empty">Nenhum convênio cadastrado</div></td></tr>';return}
+  tb.innerHTML=data.map(cv=>{
+    const saldo=parseFloat(cv.saldo_devedor||0);
+    const icone=cv.tipo==='convenio'?'🤝':'📋';
+    const limiteTxt=cv.sem_limite?'<span style="color:#16a34a;font-weight:700">Sem limite</span>':fmt(cv.limite_credito||0);
+    return '<tr>'+
+      '<td style="font-weight:700">'+icone+' '+cv.nome+'</td>'+
+      '<td>'+(cv.responsavel||'<span style="color:#555">—</span>')+'</td>'+
+      '<td><a href="javascript:void(0)" onclick="verClientesConvenio('+cv.id+')" style="color:var(--accent);text-decoration:underline">'+(cv.qtd_clientes||0)+' cliente(s)</a></td>'+
+      '<td>'+limiteTxt+'</td>'+
+      '<td style="'+(saldo>0?'color:#e05c5c;font-weight:700':'')+'">'+fmt(saldo)+'</td>'+
+      '<td><button onclick="editarConvenio('+cv.id+')" class="btn-sm" style="font-size:11px">✏️</button> '+
+      '<button onclick="excluirConvenio('+cv.id+')" class="btn-sm btn-danger" style="font-size:11px">🗑️</button></td>'+
+      '</tr>';
+  }).join('');
+}
+function _preencherSelectConvenio(){
+  const sel=document.getElementById('clf-convenio');
+  if(!sel) return;
+  const atual=sel.value;
+  sel.innerHTML='<option value="">Nenhum</option>'+
+    convenios.map(cv=>'<option value="'+cv.id+'">'+cv.nome+'</option>').join('');
+  sel.value=atual;
+}
+function onSemLimiteConvenioChange(){
+  const sem=document.getElementById('cv-sem-limite').checked;
+  const inp=document.getElementById('cv-limite');
+  inp.disabled=sem;
+  if(sem) inp.value='';
+}
+async function salvarConvenio(){
+  const id=document.getElementById('cv-id').value;
+  const nome=document.getElementById('cv-nome').value.trim();
+  if(!nome){toast('Informe o nome do convênio','err');return}
+  const payload={
+    nome,
+    tipo:document.getElementById('cv-tipo').value,
+    responsavel:document.getElementById('cv-responsavel').value,
+    telefone:document.getElementById('cv-telefone').value,
+    sem_limite:document.getElementById('cv-sem-limite').checked,
+    limite_credito:parseFloat(document.getElementById('cv-limite').value)||0,
+    observacao:document.getElementById('cv-obs').value
+  };
+  let res;
+  if(id){ payload.id=id; res=await api('/convenios/atualizar','POST',payload); }
+  else    res=await api('/convenios','POST',payload);
+  if(res&&res.ok){
+    toast(id?'Convênio atualizado!':'Convênio cadastrado!');
+    limparFormConvenio();
+    await loadConvenios();
+  } else toast('Erro ao salvar','err');
+}
+function editarConvenio(id){
+  const cv=convenios.find(x=>x.id===id); if(!cv) return;
+  document.getElementById('cv-id').value=cv.id;
+  document.getElementById('cv-nome').value=cv.nome;
+  document.getElementById('cv-tipo').value=cv.tipo||'crediario';
+  document.getElementById('cv-responsavel').value=cv.responsavel||'';
+  document.getElementById('cv-telefone').value=cv.telefone||'';
+  document.getElementById('cv-sem-limite').checked=!!cv.sem_limite;
+  document.getElementById('cv-limite').value=cv.sem_limite?'':(cv.limite_credito||'');
+  document.getElementById('cv-limite').disabled=!!cv.sem_limite;
+  document.getElementById('cv-obs').value=cv.observacao||'';
+  document.getElementById('cv-form-titulo').textContent='✏️ Editar convênio — '+cv.nome;
+  document.getElementById('cv-btn-salvar').textContent='Salvar alterações';
+}
+function limparFormConvenio(){
+  document.getElementById('cv-id').value='';
+  ['cv-nome','cv-responsavel','cv-telefone','cv-limite','cv-obs'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('cv-tipo').value='crediario';
+  document.getElementById('cv-sem-limite').checked=false;
+  document.getElementById('cv-limite').disabled=false;
+  document.getElementById('cv-form-titulo').textContent='🤝 Novo crediário/convênio';
+  document.getElementById('cv-btn-salvar').textContent='Cadastrar convênio';
+}
+async function excluirConvenio(id){
+  const cv=convenios.find(x=>x.id===id);
+  if(!await _customConfirm('Excluir o convênio "'+(cv?cv.nome:'')+'"? Os clientes vinculados continuam cadastrados, só perdem o vínculo.',{icon:'🗑️',title:'Excluir convênio',confirmText:'Excluir',confirmColor:'#dc2626'})) return;
+  const res=await api('/convenios/excluir','POST',{id});
+  if(res&&res.ok){ toast('Convênio excluído'); await loadConvenios(); }
+}
+async function verClientesConvenio(id){
+  const cv=convenios.find(x=>x.id===id);
+  const lista=await api('/convenios/'+id+'/clientes'); if(!lista) return;
+  const html = lista.length
+    ? lista.map(c=>'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px">'+
+        '<span>👤 '+c.nome+(c.telefone?' · '+c.telefone:'')+'</span>'+
+        '<span style="'+(parseFloat(c.saldo_devedor||0)>0?'color:#e05c5c;font-weight:700':'color:var(--text2)')+'">'+fmt(c.saldo_devedor||0)+'</span>'+
+        '</div>').join('')
+    : '<div style="color:var(--text2);font-size:13px">Nenhum cliente vinculado a este convênio ainda.</div>';
+  const modalHtml =
+    '<div id="modal-clientes-convenio" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center">'+
+    '<div style="background:#fff;border-radius:12px;padding:18px;width:360px;max-width:92vw;max-height:80vh;overflow:auto">'+
+    '<div style="font-weight:700;font-size:15px;margin-bottom:10px">🤝 '+(cv?cv.nome:'')+' — clientes</div>'+
+    html+
+    '<button onclick="document.getElementById(\'modal-clientes-convenio\').remove()" style="width:100%;margin-top:14px;padding:10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff">Fechar</button>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
 function toast(msg,tipo='ok'){
@@ -3661,14 +4104,64 @@ function _addCartFinal(p, adicionaisEscolhidos){
     ? p.id + '_' + adicionaisEscolhidos.map(a=>a.id).sort().join('-')
     : p.id;
   const ci = carrinho.find(x=>x._chave===chave);
-  if(ci){ if(ci.qtd<p.quantidade){ ci.qtd++; ci.subtotal=ci.qtd*precoLinha; } }
+  if(ci){ const p2=produtos.find(x=>x.id===ci.id); const max=ci.fatorConversao>1?Math.floor((p2?p2.quantidade:0)/ci.fatorConversao):(p2?p2.quantidade:0); if(ci.qtd<max){ ci.qtd++; _recalcularPrecoItem(ci,p2); } }
   else carrinho.push({
-    id:p.id, _chave:chave, nome:p.nome, preco:precoLinha, basePreco:p.preco, qtd:1, subtotal:precoLinha,
-    adicionais:adicionaisEscolhidos
+    id:p.id, _chave:chave, nome:p.nome, preco:precoLinha, basePreco:p.preco, basePrecoOriginal:p.preco,
+    precoBaseEfetivo:p.preco, qtd:1, subtotal:precoLinha,
+    adicionais:adicionaisEscolhidos, fatorConversao:1, unidadeNome:null, precoUnidadeBase:0
   });
   renderCart();
 }
 var _cacheAdicPorProduto = {}; // cache: produto_id -> lista de adicionais vinculados
+var _cacheUnidPorProduto = {}; // cache: produto_id -> lista de unidades de venda cadastradas
+async function abrirSeletorUnidade(chave){
+  const it = carrinho.find(x=>String(x._chave)===String(chave)); if(!it) return;
+  const p = produtos.find(x=>x.id===it.id); if(!p) return;
+  let lista = _cacheUnidPorProduto[p.id];
+  if(!lista){
+    lista = await api('/produtos/'+p.id+'/unidades') || [];
+    _cacheUnidPorProduto[p.id] = lista;
+  }
+  const opcoes =
+    '<label style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #f1f5f9;font-size:13px">'+
+    '<span><input type="radio" name="sel-unidade" data-un-id="0" '+(!it.unidadeNome?'checked':'')+' style="margin-right:8px"> Unidade ('+p.unidades+')</span>'+
+    '<span style="font-weight:700">'+fmt(p.preco)+'</span></label>'+
+    lista.map(u=>
+      '<label style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #f1f5f9;font-size:13px">'+
+      '<span><input type="radio" name="sel-unidade" data-un-id="'+u.id+'" '+(it.unidadeNome===u.nome?'checked':'')+' style="margin-right:8px"> '+u.nome+'</span>'+
+      '<span style="font-weight:700">'+fmt(u.preco)+'</span></label>'
+    ).join('');
+  const html =
+    '<div id="modal-unidade" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center">'+
+    '<div style="background:#fff;border-radius:12px;padding:18px;width:300px;max-width:92vw;max-height:80vh;overflow:auto">'+
+    '<div style="font-weight:700;font-size:15px;margin-bottom:4px">'+p.nome+'</div>'+
+    '<div style="font-size:12px;color:#64748b;margin-bottom:10px">Vender em qual unidade?</div>'+
+    opcoes+
+    '<div style="display:flex;gap:8px;margin-top:14px">'+
+    '<button onclick="document.getElementById(\'modal-unidade\').remove()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff">Cancelar</button>'+
+    '<button onclick="_confirmarUnidade(\''+chave+'\')" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--primary,#2563eb);color:#fff;font-weight:700">Aplicar</button>'+
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function _confirmarUnidade(chave){
+  const it = carrinho.find(x=>String(x._chave)===String(chave)); if(!it) return;
+  const p = produtos.find(x=>x.id===it.id);
+  const modal = document.getElementById('modal-unidade');
+  const escolhido = modal.querySelector('[name="sel-unidade"]:checked');
+  const unId = escolhido ? parseInt(escolhido.dataset.unId) : 0;
+  modal.remove();
+  if(unId===0){
+    // volta pra unidade base
+    it.fatorConversao=1; it.unidadeNome=null; it.precoUnidadeBase=0;
+  } else {
+    const lista = _cacheUnidPorProduto[p.id]||[];
+    const u = lista.find(x=>x.id===unId); if(!u) return;
+    it.fatorConversao=u.fator_conversao; it.unidadeNome=u.nome; it.precoUnidadeBase=u.preco;
+  }
+  it.qtd=1; // troca de unidade reseta a quantidade pra evitar confusão de conversão
+  _recalcularPrecoItem(it, p);
+  renderCart();
+}
 async function abrirSeletorAdicionais(p, chaveExistente){
   const jaEscolhidos = chaveExistente
     ? (carrinho.find(x=>String(x._chave)===String(chaveExistente))||{}).adicionais||[]
@@ -3740,17 +4233,34 @@ function _aplicarAdicionaisAoItem(chaveAntiga, novosAdicionais){
   } else {
     it._chave = novaChave;
     it.adicionais = novosAdicionais;
-    it.preco = (it.basePreco!==undefined?it.basePreco:p.preco) + valorAdic;
-    it.subtotal = it.qtd * it.preco;
+    _recalcularPrecoItem(it, p);
   }
   renderCart();
+}
+function _recalcularPrecoItem(ci, p){
+  const valorAdic = (ci.adicionais||[]).reduce((s,a)=>s+a.preco,0);
+  let base;
+  if(ci.unidadeNome){
+    // Unidade especial (fardo, caixa...) tem preço próprio fixo, não entra atacado
+    base = ci.precoUnidadeBase;
+  } else {
+    const atacadoAtivo = p && p.qtd_min_atacado>0 && p.preco_atacado>0 && ci.qtd>=p.qtd_min_atacado;
+    base = atacadoAtivo ? p.preco_atacado : ci.basePrecoOriginal;
+  }
+  ci.precoBaseEfetivo = base;
+  ci.preco = base + valorAdic;
+  ci.subtotal = ci.qtd * ci.preco;
 }
 function changeQty(chave,delta){
   const ci=carrinho.find(x=>String(x._chave)===String(chave)); if(!ci) return;
   const p=produtos.find(x=>x.id===ci.id);
   ci.qtd+=delta;
   if(ci.qtd<=0) carrinho=carrinho.filter(x=>String(x._chave)!==String(chave));
-  else{if(p && ci.qtd>p.quantidade)ci.qtd=p.quantidade; ci.subtotal=ci.qtd*ci.preco}
+  else{
+    const maxQtd = p ? (ci.fatorConversao>1 ? Math.floor(p.quantidade/ci.fatorConversao) : p.quantidade) : 9999;
+    if(ci.qtd>maxQtd) ci.qtd=maxQtd;
+    _recalcularPrecoItem(ci, p);
+  }
   renderCart();
 }
 function renderCart(){
@@ -3781,6 +4291,13 @@ function renderCart(){
       : (produtos.find(x=>x.id===i.id)||{}).tem_adicionais
         ? '<div><a href="javascript:void(0)" onclick="abrirAdicionaisDoItem(\''+i._chave+'\')" style="font-size:11px;color:#059669;text-decoration:underline">+ adicional</a></div>'
         : ''
+    ) +
+    (i.unidadeNome
+      ? '<div style="font-size:11px;color:#2563eb"><span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:1px 6px">📦 '+i.unidadeNome+'</span> '+
+        '<a href="javascript:void(0)" onclick="abrirSeletorUnidade(\''+i._chave+'\')" style="color:#64748b;text-decoration:underline">trocar</a></div>'
+      : ((produtos.find(x=>x.id===i.id)||{}).tem_unidades_extra
+          ? '<div><a href="javascript:void(0)" onclick="abrirSeletorUnidade(\''+i._chave+'\')" style="font-size:11px;color:#2563eb;text-decoration:underline">📦 vender em fardo/caixa</a></div>'
+          : '')
     ) +
     '<div style="display:flex;align-items:center;gap:6px">' +
     '<button class="qty-btn" data-qid="'+i._chave+'" data-d="-1">−</button>' +
@@ -3960,11 +4477,18 @@ async function finalizarVenda(){
     if(!endEnt){  toast('Informe o endereço de entrega','err'); return; }
   }
   const total = subtotal + taxa_ent;
-  const itens=carrinho.map(i=>({
-    produto_id:i.id,quantidade:i.qtd,preco_unitario:(i.basePreco!==undefined?i.basePreco:i.preco),
-    observacao:i.obs||'',desconto_item:i.desconto_item||0,
-    adicionais:(i.adicionais||[]).map(a=>({id:a.id,nome:a.nome,preco:a.preco}))
-  }));
+  const itens=carrinho.map(i=>{
+    const fator = i.fatorConversao||1;
+    const precoBase = i.precoBaseEfetivo!==undefined ? i.precoBaseEfetivo : (i.basePreco!==undefined?i.basePreco:i.preco);
+    return {
+      produto_id:i.id,
+      quantidade: i.qtd*fator,                 // sempre em unidade base (pro estoque bater certo)
+      preco_unitario: precoBase/fator,          // preço efetivo por unidade base
+      unidade_vendida_nome: i.unidadeNome ? (i.qtd+'x '+i.unidadeNome) : '',
+      observacao:i.obs||'',desconto_item:i.desconto_item||0,
+      adicionais:(i.adicionais||[]).map(a=>({id:a.id,nome:a.nome,preco:a.preco}))
+    };
+  });
   const btn=document.getElementById('confirm-btn');
   btn.disabled=true;btn.textContent='Registrando...';
   // Pagamento misto
@@ -4362,12 +4886,40 @@ let voltarPdvAposSalvar=false;
 let clienteDetalheId=null;
 
 // tabs da aba clientes
-function showClienteTab(id,btn){
-  document.querySelectorAll('#panel-clientes .subtab').forEach(t=>t.classList.remove('active'));
+function showClienteTab(id,btn){  document.querySelectorAll('#panel-clientes .subtab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('#panel-clientes .tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('cl-subtab-'+id).classList.add('active');
   btn.classList.add('active');
   if(id==='lista') loadClientes();
+  if(id==='enderecos') renderEnderecosTabela();
+  if(id==='vasilhame'){ _popularSelectsVasilhame(); loadSaldoVasilhame(); }
+}
+function filtrarEnderecos(){ renderEnderecosTabela(); }
+function renderEnderecosTabela(){
+  const q=(document.getElementById('end-search').value||'').toLowerCase();
+  const tb=document.getElementById('enderecos-tbody');
+  const comEndereco=clientes.filter(c=>c.logradouro||c.bairro||c.cidade||c.endereco);
+  const filtrados=comEndereco.filter(c=>
+    c.nome.toLowerCase().includes(q)||
+    (c.cidade||'').toLowerCase().includes(q)||
+    (c.bairro||'').toLowerCase().includes(q)||
+    (c.regiao_entrega||'').toLowerCase().includes(q)
+  );
+  if(!filtrados.length){
+    tb.innerHTML='<tr><td colspan="5"><div class="empty">'+(comEndereco.length?'Nenhum endereço encontrado':'Nenhum cliente com endereço cadastrado ainda')+'</div></td></tr>';
+    return;
+  }
+  tb.innerHTML=filtrados.map(c=>{
+    const logradouro=[c.logradouro,c.numero].filter(Boolean).join(', ')||'—';
+    const cidadeUf=[c.cidade,c.estado].filter(Boolean).join(' / ')||'—';
+    return '<tr>'+
+      '<td style="font-weight:700">'+(c.tipo==='juridica'?'🏢 ':'👤 ')+c.nome+'</td>'+
+      '<td>'+logradouro+'</td>'+
+      '<td>'+(c.bairro||'—')+'</td>'+
+      '<td>'+cidadeUf+'</td>'+
+      '<td>'+(c.regiao_entrega||'<span style="color:#555">—</span>')+'</td>'+
+      '</tr>';
+  }).join('');
 }
 
 function cancelarFormCliente(){
@@ -4375,24 +4927,80 @@ function cancelarFormCliente(){
   showClienteTab('lista',listaBtn);
 }
 
+// ── VASILHAME / CASCO RETORNÁVEL ───────────────────────────────────────────────
+function _popularSelectsVasilhame(){
+  const selCli=document.getElementById('vs-cliente');
+  if(selCli && selCli.options.length<=1){
+    selCli.innerHTML='<option value="">Selecione...</option>'+
+      clientes.map(c=>'<option value="'+c.id+'">'+(c.tipo==='juridica'?'🏢 ':'👤 ')+c.nome+'</option>').join('');
+  }
+  const selProd=document.getElementById('vs-produto');
+  if(selProd && selProd.options.length<=1){
+    const comVasilhame=produtos.filter(p=>p.tem_vasilhame);
+    selProd.innerHTML='<option value="">Selecione...</option>'+
+      comVasilhame.map(p=>'<option value="'+p.id+'">'+p.nome+' (dep. '+fmt(p.valor_vasilhame)+')</option>').join('');
+    if(!comVasilhame.length) selProd.innerHTML='<option value="">Nenhum produto marcado com vasilhame ainda</option>';
+  }
+}
+async function registrarMovimentoVasilhame(){
+  const cliente_id=document.getElementById('vs-cliente').value;
+  const produto_id=document.getElementById('vs-produto').value;
+  const qtd_saida=parseInt(document.getElementById('vs-saida').value)||0;
+  const qtd_retorno=parseInt(document.getElementById('vs-retorno').value)||0;
+  if(!cliente_id||!produto_id){toast('Selecione cliente e produto','err');return}
+  if(qtd_saida===0 && qtd_retorno===0){toast('Informe alguma quantidade','err');return}
+  const res=await api('/vasilhame/movimento','POST',{cliente_id,produto_id,qtd_saida,qtd_retorno});
+  if(res&&res.ok){
+    toast('Movimento registrado! Saldo pendente: '+res.saldo_pendente);
+    document.getElementById('vs-saida').value='0';
+    document.getElementById('vs-retorno').value='0';
+    await loadSaldoVasilhame();
+  } else toast('Erro ao registrar','err');
+}
+async function loadSaldoVasilhame(){
+  const data=await api('/vasilhame/saldo'); if(!data) return;
+  const tb=document.getElementById('vasilhame-tbody');
+  if(!data.length){ tb.innerHTML='<tr><td colspan="4"><div class="empty">Nenhum vasilhame pendente no momento</div></td></tr>'; return; }
+  tb.innerHTML=data.map(v=>
+    '<tr>'+
+    '<td style="font-weight:700">'+v.cliente_nome+'</td>'+
+    '<td>'+v.produto_nome+'</td>'+
+    '<td style="font-weight:700;color:#e05c5c">'+v.saldo_pendente+'</td>'+
+    '<td>'+fmt(v.saldo_pendente*(v.valor_vasilhame||0))+'</td>'+
+    '</tr>'
+  ).join('');
+}
+
 async function loadClientes(){
   const data=await api('/clientes'); if(!data) return;
-  clientes=data; clientesFiltrados=data;
+  clientes=data;
   const totalRec=data.reduce((s,c)=>s+parseFloat(c.saldo_devedor||0),0);
   document.getElementById('cl-total').textContent=data.length;
   document.getElementById('cl-cred').textContent=data.filter(c=>parseFloat(c.saldo_devedor||0)>0).length;
   document.getElementById('cl-arec').textContent=fmt(totalRec);
   document.getElementById('cl-atr').textContent=fmt(totalRec);
-  renderClientesTabela(data);
+  filtrarClientes();
 }
 
+var _filtroTipoCliente='';
+function setFiltroTipoCliente(tipo, btn){
+  _filtroTipoCliente = tipo;
+  document.querySelectorAll('.cl-tipo-filtro-btn').forEach(b=>{
+    b.style.background='transparent'; b.style.color='var(--text2)';
+  });
+  btn.style.background='var(--accent)'; btn.style.color='#fff';
+  filtrarClientes();
+}
 function filtrarClientes(){
   const q=document.getElementById('cl-search').value.toLowerCase();
-  clientesFiltrados=clientes.filter(c=>
-    c.nome.toLowerCase().includes(q)||
-    (c.telefone||'').includes(q)||
-    (c.cpf||'').includes(q)
-  );
+  clientesFiltrados=clientes.filter(c=>{
+    const okTexto = c.nome.toLowerCase().includes(q)||
+      (c.telefone||'').includes(q)||
+      (c.cpf||'').includes(q)||
+      (c.cnpj||'').includes(q);
+    const okTipo = !_filtroTipoCliente || (c.tipo||'fisica')===_filtroTipoCliente;
+    return okTexto && okTipo;
+  });
   renderClientesTabela(clientesFiltrados);
 }
 
@@ -4412,23 +5020,23 @@ function renderClientesTabela(data){
     if(!cardsEl){cardsEl=document.createElement('div');cardsEl.className='mob-cards-cli';container.appendChild(cardsEl)}
     cardsEl.innerHTML=data.map(c=>{
       const saldo=parseFloat(c.saldo_devedor||0);
-      const tags=marcadorTags(c.marcadores||'');
+      const tags=c.tipo==='juridica' ? '' : marcadorTags(c.marcadores||'');
       const st=c.status_cliente||'ativo';
       const stCor=st==='bloqueado'?'#dc2626':st==='inativo'?'#94a3b8':'#16a34a';
       const stTxt=st==='bloqueado'?'🚫 Bloqueado':st==='inativo'?'⏸ Inativo':'✅ Ativo';
       const borderCor=st==='bloqueado'?'#fca5a5':st==='inativo'?'#e2e8f0':'var(--border)';
       return `<div style="background:var(--bg2);border:1px solid ${borderCor};border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer" data-cli="${c.id}">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-weight:700;font-size:14px;color:${st==='bloqueado'?'#dc2626':'var(--text)'}">${c.nome}</div>
+          <div style="font-weight:700;font-size:14px;color:${st==='bloqueado'?'#dc2626':'var(--text)'}">${c.tipo==='juridica'?'🏢 ':'👤 '}${c.nome}</div>
           <span style="font-size:11px;font-weight:700;color:${stCor};background:${stCor}15;padding:2px 8px;border-radius:6px">${stTxt}</span>
         </div>
         ${tags?'<div style="margin-top:4px">'+tags+'</div>':''}
         <div style="display:flex;gap:10px;margin-top:6px;font-size:12px;color:var(--text2);flex-wrap:wrap">
           ${c.telefone?'<span>📞 '+c.telefone+'</span>':''}
-          ${c.cpf?'<span>🪪 '+c.cpf+'</span>':''}
-          <span>🛒 ${c.total_compras||0} compras</span>
+          ${c.tipo==='juridica' ? (c.cnpj?'<span>🏢 '+c.cnpj+'</span>':'') : (c.cpf?'<span>🪪 '+c.cpf+'</span>':'')}
+          <span>🛒 ${c.tipo==='juridica' ? (c.fornecedor_qtd_compras||0)+' entradas · '+fmt(c.fornecedor_total_gasto||0) : (c.total_compras||0)+' compras'}</span>
         </div>
-        ${saldo>0?'<div style="font-size:12px;color:#dc2626;font-weight:700;margin-top:4px">💰 Devedor: '+fmt(saldo)+'</div>':''}
+        ${(c.tipo!=='juridica' && saldo>0)?'<div style="font-size:12px;color:#dc2626;font-weight:700;margin-top:4px">💰 Devedor: '+fmt(saldo)+'</div>':''}
         <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
           <button class="btn-sm btn-edit" data-editar-cli="${c.id}" style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer">✏️ Editar</button>
           <button class="btn-sm btn-del" data-excluir-cli="${c.id}" data-nome-cli="${c.nome.replace(/"/g,'&quot;')}" style="padding:5px 12px;border-radius:6px;border:1px solid #fca5a5;background:#fef2f2;font-size:12px;cursor:pointer;color:#dc2626">🗑️</button>
@@ -4445,7 +5053,7 @@ function renderClientesTabela(data){
   tbody.innerHTML=data.map(c=>{
     const saldo=parseFloat(c.saldo_devedor||0);
     const corSaldo=saldo>0?'color:#e05c5c;font-weight:700':'color:var(--text2)';
-    const tags=marcadorTags(c.marcadores||'');
+    const tags=c.tipo==='juridica' ? '' : marcadorTags(c.marcadores||'');
     const st=c.status_cliente||'ativo';
     const stBadge={
       ativo:    '<span class="badge badge-status-ativo">✅ Ativo</span>',
@@ -4456,14 +5064,14 @@ function renderClientesTabela(data){
     const nomeColor=st==='inativo'?'#94a3b8':st==='bloqueado'?'#dc2626':'var(--text)';
     return `<tr style="cursor:pointer${rowStyle}" data-cli="${c.id}">
       <td>
-        <div style="font-weight:700;color:${nomeColor}">${c.nome}</div>
+        <div style="font-weight:700;color:${nomeColor}">${c.tipo==='juridica'?'🏢 ':'👤 '}${c.nome}</div>
         ${tags?'<div class="marcadores-lista" style="margin-top:4px">'+tags+'</div>':''}
       </td>
       <td>${c.telefone||'<span style="color:#555">—</span>'}</td>
-      <td>${c.cpf||'<span style="color:#555">—</span>'}</td>
-      <td>${parseFloat(c.limite_credito||0)>0?fmt(c.limite_credito):'<span style="color:#555">—</span>'}</td>
-      <td><span style="${corSaldo}">${saldo>0?fmt(saldo):'<span style="color:var(--text3)">R$ 0,00</span>'}</span></td>
-      <td>${c.total_compras||0}</td>
+      <td>${c.tipo==='juridica'?(c.cnpj||'<span style="color:#555">—</span>'):(c.cpf||'<span style="color:#555">—</span>')}</td>
+      <td>${c.tipo==='juridica'?'<span style="color:#555">—</span>':(parseFloat(c.limite_credito||0)>0?fmt(c.limite_credito):'<span style="color:#555">—</span>')}</td>
+      <td>${c.tipo==='juridica'?'<span style="color:#555">—</span>':`<span style="${corSaldo}">${saldo>0?fmt(saldo):'<span style="color:var(--text3)">R$ 0,00</span>'}</span>`}</td>
+      <td>${c.tipo==='juridica' ? (c.fornecedor_qtd_compras||0)+'x · '+fmt(c.fornecedor_total_gasto||0) : (c.total_compras||0)}</td>
       <td>${stBadge}</td>
       <td style="text-align:center">
         <div style="display:flex;gap:6px;justify-content:center">
@@ -4494,9 +5102,14 @@ async function abrirDetalheCliente(id){
   clienteDetalheId=id;
   const data=await api('/clientes/'+id); if(!data) return;
   _marcDadosDet = data.marcadores||'';
-  document.getElementById('cl-det-nome').textContent='👤 '+data.nome;
-  document.getElementById('cl-det-sub').textContent=
-    [data.telefone,data.cpf,data.endereco].filter(Boolean).join(' · ')||'Sem informações adicionais';
+  document.getElementById('cl-det-nome').textContent=(data.tipo==='juridica'?'🏢 ':'👤 ')+data.nome;
+  document.getElementById('cl-det-sub').textContent= data.tipo==='juridica'
+    ? [data.razao_social,data.cnpj,data.telefone].filter(Boolean).join(' · ')||'Sem informações adicionais'
+    : [data.telefone,data.cpf,data.endereco].filter(Boolean).join(' · ')||'Sem informações adicionais';
+  const btnMarc=document.getElementById('cl-det-btn-marcadores');
+  if(btnMarc) btnMarc.style.display = data.tipo==='juridica' ? 'none' : '';
+  const fidelBtn=document.querySelector('#panel-clientes .modal-tab[onclick*="fidelidade"]');
+  if(fidelBtn) fidelBtn.style.display = data.tipo==='juridica' ? 'none' : '';
   // alerta de status bloqueado/inativo
   const alertEl=document.getElementById('cl-det-alerta');
   const stCliente=data.status_cliente||'ativo';
@@ -4515,11 +5128,21 @@ async function abrirDetalheCliente(id){
   }
 
   // campos de dados
-  const camposMarcadores=marcadorTags(data.marcadores||'');
-  const campos=[
+  const camposMarcadores = data.tipo==='juridica' ? '' : marcadorTags(data.marcadores||'');
+  const ieDisplay = (data.ie||'').trim().toUpperCase()==='ISENTO' ? 'Isento' : (data.ie||'—');
+  const campos = data.tipo==='juridica' ? [
+    ['Razão Social', data.razao_social||'—'],
+    ['CNPJ',         data.cnpj||'—'],
+    ['Inscrição Estadual', ieDisplay],
+    ['Telefone',    data.telefone||'—'],
+    ['Endereço',    data.endereco||'—'],
+    ['Região de entrega', data.regiao_entrega||'—'],
+    ['Observações', data.observacao||'—'],
+  ] : [
     ['Telefone',    data.telefone||'—'],
     ['CPF',         data.cpf||'—'],
     ['Endereço',    data.endereco||'—'],
+    ['Região de entrega', data.regiao_entrega||'—'],
     ['Limite crediário', data.limite_credito>0?fmt(data.limite_credito):'Não definido'],
     ['Observações', data.observacao||'—'],
   ];
@@ -4545,10 +5168,25 @@ async function abrirDetalheCliente(id){
       <div style="font-size:13px;color:var(--text)">${v}</div>
     </div>`).join('');
 
-  // histórico de vendas
+  // histórico de vendas (ou, se for fornecedor PJ, histórico de compras feitas dele via XML)
   const icons={dinheiro:'💵',cartao_credito:'💳',cartao_debito:'🏧',pix:'🔑',crediario:'📋'};
   const vendasEl=document.getElementById('cl-det-vendas');
-  if(data.vendas&&data.vendas.length){
+  if(data.tipo==='juridica'){
+    const compras=data.compras_fornecedor||[];
+    if(compras.length){
+      vendasEl.innerHTML=`<div style="font-size:12px;color:var(--text2);margin-bottom:10px">${data.fornecedor_qtd_compras||compras.length} compra(s) · Total gasto: <strong>${fmt(data.fornecedor_total_gasto||0)}</strong></div>`+
+      `<div class="card" style="padding:0;overflow:hidden">`+
+      compras.map(e=>`
+        <div class="venda-mini">
+          <div class="venda-mini-header">
+            <span>${e.processado?'✅':'⏳'} XML — ${fmtData(e.data_emissao)}</span>
+            <span style="color:var(--accent)">${fmt(e.valor_total)}</span>
+          </div>
+        </div>`).join('')+`</div>`;
+    } else {
+      vendasEl.innerHTML='<div class="empty">Nenhuma entrada de XML vinculada a este fornecedor ainda</div>';
+    }
+  } else if(data.vendas&&data.vendas.length){
     vendasEl.innerHTML=`<div style="font-size:12px;color:var(--text2);margin-bottom:10px">${data.vendas.length} compra(s)</div>`+
     `<div class="card" style="padding:0;overflow:hidden">`+
     data.vendas.map(v=>`
@@ -4702,6 +5340,116 @@ async function editarClienteDetalhe(){
   fecharDetalhe();
 }
 
+function onTipoClienteChange(){
+  const juridica = document.getElementById('clf-tipo-juridica').checked;
+  document.getElementById('clf-nome-wrap').style.display   = juridica ? 'none' : '';
+  document.getElementById('clf-razao-wrap').style.display  = juridica ? '' : 'none';
+  document.getElementById('clf-cpf-wrap').style.display    = juridica ? 'none' : '';
+  document.getElementById('clf-cnpj-wrap').style.display   = juridica ? '' : 'none';
+  document.getElementById('clf-ie-wrap').style.display     = juridica ? '' : 'none';
+  document.getElementById('clf-nome-label').textContent    = juridica ? 'Nome Fantasia' : 'Nome completo *';
+  // Fornecedor (PJ) não precisa de crediário nem de marcadores de comportamento de cliente (mau pagador etc.)
+  document.getElementById('clf-lim-wrap').style.display        = juridica ? 'none' : '';
+  document.getElementById('clf-convenio-wrap').style.display   = juridica ? 'none' : '';
+  document.getElementById('clf-limite-tipo-wrap').style.display= 'none';
+  document.getElementById('clf-marcadores-wrap').style.display = juridica ? 'none' : '';
+  if(juridica){
+    document.getElementById('clf-lim').value='';
+    document.getElementById('clf-convenio').value='';
+    setMarcadoresAtivos('');
+  }
+}
+function onConvenioClienteChange(){
+  const convId=document.getElementById('clf-convenio').value;
+  const wrap=document.getElementById('clf-limite-tipo-wrap');
+  const limWrap=document.getElementById('clf-lim-wrap');
+  if(!convId){
+    wrap.style.display='none';
+    limWrap.style.display='';
+    return;
+  }
+  wrap.style.display='';
+  onLimiteTipoChange();
+}
+function onLimiteTipoChange(){
+  const proprio = document.getElementById('clf-limite-tipo-proprio').checked;
+  const limWrap = document.getElementById('clf-lim-wrap');
+  const info = document.getElementById('clf-limite-convenio-info');
+  limWrap.style.display = proprio ? '' : 'none';
+  if(!proprio){
+    const convId=document.getElementById('clf-convenio').value;
+    const cv=convenios.find(c=>String(c.id)===String(convId));
+    if(cv){
+      info.textContent = cv.sem_limite ? '✅ Este convênio não tem limite definido (crédito livre).' : 'Limite do convênio: '+fmt(cv.limite_credito||0);
+    } else info.textContent='';
+    document.getElementById('clf-lim').value='';
+  }
+}
+function onIeIsentoChange(){
+  const isento = document.getElementById('clf-ie-isento').checked;
+  const ieInput = document.getElementById('clf-ie');
+  ieInput.disabled = isento;
+  if(isento) ieInput.value = 'ISENTO';
+  else if(ieInput.value==='ISENTO') ieInput.value='';
+}
+
+function onVasilhameChange(prefixo){
+  const checked=document.getElementById(prefixo+'-tem-vasilhame').checked;
+  document.getElementById(prefixo+'-valor-vasilhame-wrap').style.display = checked ? '' : 'none';
+}
+
+// ── UNIDADES DE VENDA COM CONVERSÃO ─────────────────────────────────────────────
+var _prodUnidTemp=[]; // temp (form de criar, produto ainda não salvo)
+var _epUnidades=[];   // unidades do produto sendo editado (vindas do banco)
+
+function renderUnidadesAdmin(prefixo){
+  const el=document.getElementById(prefixo+'-lista-unidades');
+  if(!el) return;
+  const lista = prefixo==='ep' ? _epUnidades : _prodUnidTemp;
+  if(!lista.length){ el.innerHTML='<span style="color:#94a3b8">Nenhuma unidade extra cadastrada — vende só na unidade base.</span>'; return; }
+  el.innerHTML = lista.map((u,idx)=>
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f1f5f9">'+
+    '<span>'+u.nome+' — '+u.fator_conversao+' un. — <b>'+fmt(u.preco)+'</b></span>'+
+    '<button type="button" onclick="removerUnidadeProduto(\''+prefixo+'\','+(u.id!==undefined?u.id:idx)+')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:12px">✕ remover</button>'+
+    '</div>'
+  ).join('');
+}
+async function cadastrarUnidadeProduto(prefixo){
+  prefixo = prefixo||'ep';
+  const nome=document.getElementById(prefixo+'-un-nome').value.trim();
+  const fator=parseFloat(document.getElementById(prefixo+'-un-fator').value);
+  const preco=parseFloat(document.getElementById(prefixo+'-un-preco').value)||0;
+  if(!nome){toast('Informe o nome da unidade (ex: Fardo)','err');return}
+  if(!fator||fator<=1){toast('Informe quantas unidades base tem (deve ser maior que 1)','err');return}
+  if(prefixo==='ep'){
+    const pid=parseInt(document.getElementById('ep-id').value);
+    const res=await api('/produtos/unidades','POST',{produto_id:pid,nome,fator_conversao:fator,preco});
+    if(res&&res.ok){ await _epCarregarUnidades(pid); toast('Unidade "'+nome+'" cadastrada!'); }
+    else toast('Erro ao cadastrar unidade','err');
+  } else {
+    _prodUnidTemp.push({nome,fator_conversao:fator,preco});
+    renderUnidadesAdmin('c');
+  }
+  document.getElementById(prefixo+'-un-nome').value='';
+  document.getElementById(prefixo+'-un-fator').value='';
+  document.getElementById(prefixo+'-un-preco').value='';
+}
+async function removerUnidadeProduto(prefixo, id){
+  if(prefixo==='ep'){
+    const pid=parseInt(document.getElementById('ep-id').value);
+    const res=await api('/produtos/unidades/remover','POST',{id});
+    if(res&&res.ok){ await _epCarregarUnidades(pid); toast('Removido'); }
+  } else {
+    _prodUnidTemp.splice(id,1);
+    renderUnidadesAdmin('c');
+  }
+}
+async function _epCarregarUnidades(pid){
+  const data=await api('/produtos/'+pid+'/unidades');
+  _epUnidades = data || [];
+  renderUnidadesAdmin('ep');
+}
+
 // Abre o formulário para EDITAR via botão da tabela
 async function editarCliente(id){
   const data=await api('/clientes/'+id); if(!data) return;
@@ -4709,29 +5457,65 @@ async function editarCliente(id){
   document.getElementById('clf-nome').value=data.nome;
   document.getElementById('clf-tel').value=data.telefone||'';
   document.getElementById('clf-cpf').value=data.cpf||'';
-  document.getElementById('clf-end').value=data.endereco||'';
+  document.getElementById('clf-cnpj').value=data.cnpj||'';
+  document.getElementById('clf-ie').value=data.ie||'';
+  const ieIsento = (data.ie||'').trim().toUpperCase()==='ISENTO';
+  document.getElementById('clf-ie-isento').checked = ieIsento;
+  document.getElementById('clf-ie').disabled = ieIsento;
+  document.getElementById('clf-razao').value=data.razao_social||'';
+  document.getElementById('clf-logradouro').value=data.logradouro||'';
+  document.getElementById('clf-numero').value=data.numero||'';
+  document.getElementById('clf-bairro').value=data.bairro||'';
+  document.getElementById('clf-cidade').value=data.cidade||'';
+  document.getElementById('clf-estado').value=data.estado||'';
+  document.getElementById('clf-pais').value=data.pais||'Brasil';
+  document.getElementById('clf-regiao-entrega').value=data.regiao_entrega||'';
   document.getElementById('clf-lim').value=data.limite_credito||'';
+  document.getElementById('clf-convenio').value=data.convenio_id||'';
+  document.getElementById('clf-limite-tipo-proprio').checked = data.limite_tipo==='proprio';
+  document.getElementById('clf-limite-tipo-convenio').checked = data.limite_tipo!=='proprio';
   document.getElementById('clf-obs').value=data.observacao||'';
+  document.getElementById('clf-tipo-fisica').checked = (data.tipo||'fisica')==='fisica';
+  document.getElementById('clf-tipo-juridica').checked = data.tipo==='juridica';
+  onTipoClienteChange();
+  if(data.convenio_id){ onConvenioClienteChange(); if(data.limite_tipo==='proprio') document.getElementById('clf-lim').value=data.limite_credito||''; }
   const stSel=document.getElementById('clf-status');
   if(stSel){ stSel.value=data.status_cliente||'ativo'; onStatusFormChange(stSel); }
   setMarcadoresAtivos(data.marcadores||'');
   document.getElementById('cl-form-titulo').textContent='Editar cliente — '+data.nome;
   document.getElementById('clf-btn-salvar').textContent='Salvar alterações';
-  const formBtn=document.querySelector('#panel-clientes .tab-btn:last-child');
+  const formBtn=document.getElementById('cl-tab-novo');
   showClienteTab('form',formBtn);
 }
 
 // Salva (novo ou edição) pelo formulário da aba
 async function salvarClienteForm(){
   const id=document.getElementById('clf-id').value;
-  const nome=document.getElementById('clf-nome').value.trim();
-  if(!nome){toast('Informe o nome do cliente','err');return}
+  const juridica=document.getElementById('clf-tipo-juridica').checked;
+  const nome=juridica
+    ? document.getElementById('clf-nome').value.trim() || document.getElementById('clf-razao').value.trim()
+    : document.getElementById('clf-nome').value.trim();
+  const razao=document.getElementById('clf-razao').value.trim();
+  if(juridica && !razao){toast('Informe a Razão Social','err');return}
+  if(!juridica && !nome){toast('Informe o nome do cliente','err');return}
   const stSel=document.getElementById('clf-status');
   const payload={
-    nome,
+    nome: juridica ? (nome || razao) : nome,
     telefone:document.getElementById('clf-tel').value,
     cpf:document.getElementById('clf-cpf').value,
-    endereco:document.getElementById('clf-end').value,
+    cnpj:document.getElementById('clf-cnpj').value,
+    ie:document.getElementById('clf-ie').value,
+    razao_social:razao,
+    tipo: juridica?'juridica':'fisica',
+    logradouro:document.getElementById('clf-logradouro').value,
+    numero:document.getElementById('clf-numero').value,
+    bairro:document.getElementById('clf-bairro').value,
+    cidade:document.getElementById('clf-cidade').value,
+    estado:document.getElementById('clf-estado').value,
+    pais:document.getElementById('clf-pais').value||'Brasil',
+    regiao_entrega:document.getElementById('clf-regiao-entrega').value,
+    convenio_id:document.getElementById('clf-convenio').value||null,
+    limite_tipo:document.getElementById('clf-limite-tipo-proprio').checked?'proprio':'convenio',
     observacao:document.getElementById('clf-obs').value,
     limite_credito:parseFloat(document.getElementById('clf-lim').value)||0,
     marcadores:getMarcadoresSelecionados(),
@@ -4742,9 +5526,17 @@ async function salvarClienteForm(){
   else   res=await api('/clientes','POST',payload);
 
   if(res&&res.ok){
-    toast(id?`"${nome}" atualizado!`:`"${nome}" cadastrado!`);
+    toast(id?`"${payload.nome}" atualizado!`:`"${payload.nome}" cadastrado!`);
     // limpa form
-    ['clf-id','clf-nome','clf-tel','clf-cpf','clf-end','clf-lim','clf-obs'].forEach(i=>document.getElementById(i).value='');
+    ['clf-id','clf-nome','clf-tel','clf-cpf','clf-cnpj','clf-ie','clf-razao','clf-lim','clf-obs',
+     'clf-logradouro','clf-numero','clf-bairro','clf-cidade','clf-estado','clf-regiao-entrega'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('clf-pais').value='Brasil';
+    document.getElementById('clf-ie-isento').checked=false;
+    document.getElementById('clf-ie').disabled=false;
+    document.getElementById('clf-convenio').value='';
+    document.getElementById('clf-limite-tipo-convenio').checked=true;
+    document.getElementById('clf-tipo-fisica').checked=true;
+    onTipoClienteChange();
     const stSelReset=document.getElementById('clf-status');
     if(stSelReset){stSelReset.value='ativo';onStatusFormChange(stSelReset);}
     setMarcadoresAtivos('');
@@ -4775,9 +5567,12 @@ async function excluirClienteDetalhe(){
 // Manter compatibilidade com PDV (link "+ Cadastrar novo cliente agora")
 function abrirModalNovoCliente(voltarPdv=false){
   voltarPdvAposSalvar=voltarPdv;
-  ['clf-id','clf-nome','clf-tel','clf-cpf','clf-end','clf-lim','clf-obs'].forEach(i=>{
+  ['clf-id','clf-nome','clf-tel','clf-cpf','clf-cnpj','clf-ie','clf-razao','clf-lim','clf-obs',
+   'clf-logradouro','clf-numero','clf-bairro','clf-cidade','clf-estado','clf-regiao-entrega'].forEach(i=>{
     const el=document.getElementById(i); if(el) el.value='';
   });
+  const paisEl=document.getElementById('clf-pais'); if(paisEl) paisEl.value='Brasil';
+  const tipoFisicaEl=document.getElementById('clf-tipo-fisica'); if(tipoFisicaEl){tipoFisicaEl.checked=true; onTipoClienteChange();}
   const stSelNovo=document.getElementById('clf-status');
   if(stSelNovo){stSelNovo.value='ativo';onStatusFormChange(stSelNovo);}
   const formTit=document.getElementById('cl-form-titulo');
@@ -4788,7 +5583,7 @@ function abrirModalNovoCliente(voltarPdv=false){
   const clBtn=document.querySelector('.nav-btn[onclick*="clientes"]');
   if(clBtn){ showPanel('clientes',clBtn); }
   setTimeout(()=>{
-    const formBtn=document.querySelector('#panel-clientes .tab-btn:last-child');
+    const formBtn=document.getElementById('cl-tab-novo');
     if(formBtn) showClienteTab('form',formBtn);
   },80);
 }
@@ -5791,6 +6586,105 @@ function _initEntregasPanel(){
   if(de && !de.value)  de.value  = hoje;
   if(ate && !ate.value) ate.value = hoje;
 }
+// ── ROTAS DE ENTREGA ─────────────────────────────────────────────────────────
+async function loadPendentesRota(){
+  const data=await api('/rotas-entrega/vendas-pendentes'); if(!data) return;
+  const el=document.getElementById('rt-pendentes');
+  if(!data.length){ el.innerHTML='<div class="empty">Nenhuma entrega aguardando rota</div>'; return; }
+  el.innerHTML = data.map(v=>{
+    const endereco=[v.logradouro,v.numero,v.bairro].filter(Boolean).join(', ')||'Endereço não informado';
+    const nome=v.cliente_nome||v.nome_cliente_balcao||'Cliente balcão';
+    return '<div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+      '<div style="min-width:0">'+
+      '<div style="font-weight:700;font-size:13px">#'+v.id+' — '+nome+'</div>'+
+      '<div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+endereco+(v.regiao_entrega?' · '+v.regiao_entrega:'')+'</div>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+
+      '<span style="font-weight:700;color:var(--accent);font-size:12px">'+fmt(v.total)+'</span>'+
+      '<select onchange="if(this.value)adicionarParadaRota('+v.id+',this.value)" style="font-size:11px;padding:4px 6px;border-radius:6px;border:1px solid var(--border)">'+
+      '<option value="">+ Rota</option>'+
+      (rotasAbertas||[]).map(r=>'<option value="'+r.id+'">'+r.nome+'</option>').join('')+
+      '</select></div></div>';
+  }).join('');
+}
+var rotasAbertas=[];
+async function loadRotas(){
+  const data=await api('/rotas-entrega'); if(!data) return;
+  rotasAbertas = data.filter(r=>r.status==='aberta');
+  const el=document.getElementById('rt-lista-rotas');
+  if(!data.length){ el.innerHTML='<div class="card"><div class="empty">Nenhuma rota criada ainda</div></div>'; return; }
+  el.innerHTML = data.map(r=>{
+    const stCor = r.status==='aberta'?'#2563eb':r.status==='em_andamento'?'#f59e0b':'#16a34a';
+    const stTxt = r.status==='aberta'?'🗺️ Aberta':r.status==='em_andamento'?'🚚 Em andamento':'✅ Concluída';
+    const veicIcon = r.veiculo_tipo==='carro'?'🚗':'🏍️';
+    const paradas = r.paradas||[];
+    const entregues = paradas.filter(p=>p.parada_status==='entregue').length;
+    return '<div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">'+
+      '<div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+      '<div><div style="font-weight:700;font-size:13px">'+veicIcon+' '+r.nome+'</div>'+
+      '<div style="font-size:11px;color:var(--text2)">'+(r.motorista?'🧑 '+r.motorista+' · ':'')+fmtData(r.data_rota)+' · '+entregues+'/'+paradas.length+' entregues</div></div>'+
+      '<div style="display:flex;align-items:center;gap:6px">'+
+      '<span style="font-size:11px;font-weight:700;color:'+stCor+'">'+stTxt+'</span>'+
+      (r.status!=='concluida'?'<select onchange="atualizarStatusRota('+r.id+',this.value)" style="font-size:11px;padding:3px 5px;border-radius:6px;border:1px solid var(--border)">'+
+        '<option value="">Status...</option>'+
+        '<option value="em_andamento"'+(r.status==='em_andamento'?' selected':'')+'>🚚 Em andamento</option>'+
+        '<option value="concluida">✅ Concluir</option>'+
+        '</select>'
+        :'<button onclick="estornarRota('+r.id+')" title="Reabrir esta rota para editar" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;font-weight:700;cursor:pointer">↩️ Estornar</button>')+
+      '</div></div>'+
+      (paradas.length?paradas.map(p=>{
+        const nome=p.cliente_nome||p.nome_cliente_balcao||'Cliente balcão';
+        const endereco=[p.logradouro,p.numero,p.bairro].filter(Boolean).join(', ')||'—';
+        const entregue=p.parada_status==='entregue';
+        return '<div style="padding:8px 14px;border-bottom:1px solid #f8fafc;display:flex;justify-content:space-between;align-items:center;font-size:12px;'+(entregue?'opacity:.65':'')+'">'+
+          '<div><b>#'+p.venda_id+'</b> '+nome+' <span style="color:var(--text2)">· '+endereco+'</span></div>'+
+          '<div style="display:flex;align-items:center;gap:6px">'+
+          '<span style="color:var(--accent);font-weight:700">'+fmt(p.total)+'</span>'+
+          (entregue
+            ?'<span style="color:#16a34a;font-weight:700">✅</span><button onclick="desfazerParadaEntregue('+p.parada_id+')" title="Desfazer" style="font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer">↩️</button>'
+            :'<button onclick="marcarParadaEntregue('+p.parada_id+')" style="font-size:11px;padding:3px 8px;border-radius:6px;border:none;background:#16a34a;color:#fff;cursor:pointer">Entregue</button>')+
+          '</div></div>';
+      }).join('') : '<div style="padding:10px 14px;font-size:12px;color:var(--text2)">Nenhuma parada adicionada ainda</div>')+
+      '</div>';
+  }).join('');
+}
+async function criarRota(){
+  const nome=document.getElementById('rt-nome').value.trim();
+  if(!nome){toast('Informe o nome da rota','err');return}
+  const veiculo=document.getElementById('rt-veiculo').value;
+  const res=await api('/rotas-entrega','POST',{nome,motorista:document.getElementById('rt-motorista').value,veiculo_tipo:veiculo});
+  if(res&&res.ok){
+    toast('Rota criada!');
+    document.getElementById('rt-nome').value='';
+    document.getElementById('rt-motorista').value='';
+    await loadRotas();
+    await loadPendentesRota();
+  } else toast('Erro ao criar rota','err');
+}
+async function adicionarParadaRota(venda_id, rota_id){
+  const res=await api('/rotas-entrega/parada','POST',{rota_id,venda_id});
+  if(res&&res.ok){ toast('Adicionado à rota!'); await loadRotas(); await loadPendentesRota(); }
+  else toast('Erro ao adicionar','err');
+}
+async function marcarParadaEntregue(parada_id){
+  const res=await api('/rotas-entrega/parada/status','POST',{id:parada_id,status:'entregue'});
+  if(res&&res.ok){ toast('Marcado como entregue!'); await loadRotas(); }
+}
+async function atualizarStatusRota(rota_id, status){
+  if(!status) return;
+  const res=await api('/rotas-entrega/status','POST',{id:rota_id,status});
+  if(res&&res.ok){ toast('Status da rota atualizado!'); await loadRotas(); }
+}
+async function estornarRota(rota_id){
+  if(!await _customConfirm('Reabrir esta rota concluída pra editar? Ela volta pro status "Em andamento".',{icon:'↩️',title:'Estornar rota',confirmText:'Reabrir',confirmColor:'#f59e0b'})) return;
+  const res=await api('/rotas-entrega/status','POST',{id:rota_id,status:'em_andamento'});
+  if(res&&res.ok){ toast('Rota reaberta — pode editar de novo'); await loadRotas(); }
+}
+async function desfazerParadaEntregue(parada_id){
+  const res=await api('/rotas-entrega/parada/status','POST',{id:parada_id,status:'pendente'});
+  if(res&&res.ok){ toast('Entrega desfeita, voltou pra pendente'); await loadRotas(); }
+}
+
 async function loadEntregas(){
   const de     = (function(){var _e=document.getElementById('ent-f-de');return _e?_e.value:null;})()  || _hoje2();
   const ate    = (function(){var _e=document.getElementById('ent-f-ate');return _e?_e.value:null;})() || _hoje2();
@@ -6326,6 +7220,19 @@ async function uploadCertificado(){
 
 // ── XML / ENTRADA ────────────────────────────────────────────────────────────
 let _lastEntradaId=null;
+function cadastrarFornecedorRapido(nome, cnpj){
+  const clBtn=document.querySelector('.nav-btn[onclick*="clientes"]');
+  showPanel('clientes', clBtn);
+  setTimeout(function(){
+    const formBtn=document.getElementById('cl-tab-novo');
+    showClienteTab('form',formBtn);
+    document.getElementById('clf-tipo-juridica').checked=true;
+    onTipoClienteChange();
+    document.getElementById('clf-razao').value=nome;
+    document.getElementById('clf-cnpj').value=cnpj;
+    toast('Confirme os dados e clique em Cadastrar');
+  }, 150);
+}
 async function importarXML(){
   var file=document.getElementById('xml-file').files[0];
   if(!file){toast('Selecione um arquivo XML','warn');return}
@@ -6335,8 +7242,18 @@ async function importarXML(){
     var resultado=document.getElementById('xml-resultado');
     if(res&&res.ok){
       resultado.style.display='block';
+      resultado.style.background='#f0fdf4';resultado.style.borderColor='#bbf7d0';
       document.getElementById('xml-res-titulo').textContent='✅ XML importado: '+res.fornecedor;
-      document.getElementById('xml-res-info').innerHTML='Chave: '+(res.chave||'—')+'<br>Valor: '+fmt(res.valor_total)+' | '+res.qtd_itens+' itens';
+      var infoHtml='Chave: '+(res.chave||'—')+'<br>Valor: '+fmt(res.valor_total)+' | '+res.qtd_itens+' itens';
+      if(res.cnpj_fornecedor && !res.fornecedor_id){
+        infoHtml += '<div style="margin-top:8px;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e">'+
+          '⚠️ Fornecedor "'+res.fornecedor+'" (CNPJ '+res.cnpj_fornecedor+') ainda não está cadastrado. '+
+          '<a href="javascript:void(0)" onclick="cadastrarFornecedorRapido(\''+res.fornecedor.replace(/'/g,"\\'")+'\',\''+res.cnpj_fornecedor+'\')" style="color:#92400e;text-decoration:underline;font-weight:700">Cadastrar agora</a>'+
+          '</div>';
+      } else if(res.fornecedor_id){
+        infoHtml += '<div style="margin-top:6px;font-size:12px;color:#16a34a;font-weight:700">🔗 Vinculado ao fornecedor já cadastrado</div>';
+      }
+      document.getElementById('xml-res-info').innerHTML=infoHtml;
       _lastEntradaId=res.entrada_id;
       renderItensXML(res.itens);
       loadHistoricoXML();
@@ -6378,14 +7295,26 @@ async function confirmarEntradaXML(){
     loadProdutos();
   }else toast((res&&res.erro)||'Erro ao confirmar','err');
 }
+function limparFiltrosXml(){
+  ['xml-filtro-data-ini','xml-filtro-data-fim','xml-filtro-fornecedor'].forEach(id=>{var e=document.getElementById(id);if(e)e.value=''});
+  var stat=document.getElementById('xml-filtro-status'); if(stat) stat.value='';
+  loadHistoricoXML();
+}
 async function loadHistoricoXML(){
-  var d=await api('/xml/entradas');if(!d)return;
+  var params = new URLSearchParams();
+  var dIni=document.getElementById('xml-filtro-data-ini'); if(dIni&&dIni.value) params.set('data_inicio',dIni.value);
+  var dFim=document.getElementById('xml-filtro-data-fim'); if(dFim&&dFim.value) params.set('data_fim',dFim.value);
+  var forn=document.getElementById('xml-filtro-fornecedor'); if(forn&&forn.value.trim()) params.set('fornecedor',forn.value.trim());
+  var stat=document.getElementById('xml-filtro-status'); if(stat&&stat.value!=='') params.set('processado',stat.value);
+  var qs = params.toString();
+  var d=await api('/xml/entradas'+(qs?'?'+qs:''));if(!d)return;
   var el=document.getElementById('xml-historico');
-  if(!d.length){el.innerHTML='<div class="empty">Nenhum XML importado</div>';return}
+  if(!d.length){el.innerHTML='<div class="empty">Nenhum XML importado com esses filtros</div>';return}
   el.innerHTML='<table class="tbl"><thead><tr><th>Data</th><th>Fornecedor</th><th>CNPJ</th><th>Valor</th><th>Itens</th><th>Status</th></tr></thead><tbody>'+
     d.map(function(e){
       var st=e.processado?'<span style="color:#16a34a;font-weight:700">✅ Processado</span>':'<span style="color:#f59e0b;font-weight:700">⏳ Pendente</span>';
-      return '<tr><td>'+fmtData(e.data_emissao)+'</td><td><strong>'+e.fornecedor+'</strong></td><td style="font-size:11px">'+e.cnpj_fornecedor+'</td><td>'+fmt(e.valor_total)+'</td><td>'+e.itens.length+'</td><td>'+st+'</td></tr>';
+      var fornLabel = e.fornecedor_cadastrado_nome ? e.fornecedor_cadastrado_nome+' <span style="color:#16a34a;font-size:10px" title="Fornecedor cadastrado">🔗</span>' : e.fornecedor;
+      return '<tr><td>'+fmtData(e.data_emissao)+'</td><td><strong>'+fornLabel+'</strong></td><td style="font-size:11px">'+e.cnpj_fornecedor+'</td><td>'+fmt(e.valor_total)+'</td><td>'+e.itens.length+'</td><td>'+st+'</td></tr>';
     }).join('')+'</tbody></table>';
 }
 
@@ -6747,6 +7676,12 @@ async function abrirEditarProduto(id){
   document.getElementById('ep-markup').value = p.markup > 0 ? p.markup.toFixed(1) : '';
   document.getElementById('ep-tem-adicionais').checked = !!p.tem_adicionais;
   await _epCarregarAdicionais(p.id);
+  await _epCarregarUnidades(p.id);
+  document.getElementById('ep-qtd-atacado').value = p.qtd_min_atacado>0 ? p.qtd_min_atacado : '';
+  document.getElementById('ep-preco-atacado').value = p.preco_atacado>0 ? p.preco_atacado : '';
+  document.getElementById('ep-tem-vasilhame').checked = !!p.tem_vasilhame;
+  document.getElementById('ep-valor-vasilhame').value = p.valor_vasilhame>0 ? p.valor_vasilhame : '';
+  onVasilhameChange('ep');
   document.getElementById('ep-codigo').value = p.codigo || '';
   // categoria
   const catSel = document.getElementById('ep-cat');
@@ -6869,6 +7804,10 @@ async function salvarEdicaoProduto(){
   const emojiVal = (document.getElementById('ep-emoji')||{}).value||'';
   const temAdicEl = document.getElementById('ep-tem-adicionais');
   const temAdic = temAdicEl ? (temAdicEl.checked?1:0) : 0;
+  const qtdAtacado = parseInt(document.getElementById('ep-qtd-atacado').value)||0;
+  const precoAtacado = parseFloat(document.getElementById('ep-preco-atacado').value)||0;
+  const temVasilhame = document.getElementById('ep-tem-vasilhame').checked?1:0;
+  const valorVasilhame = parseFloat(document.getElementById('ep-valor-vasilhame').value)||0;
   if(!id){toast('Erro: ID do produto não encontrado','err');return}
   if(!nome||isNaN(preco)||preco<=0){toast('Informe nome e preço de venda!','err');return}
   const payload = {
@@ -6883,7 +7822,11 @@ async function salvarEdicaoProduto(){
     codigo,
     descricao,
     emoji: emojiVal,
-    tem_adicionais: temAdic
+    tem_adicionais: temAdic,
+    qtd_min_atacado: qtdAtacado,
+    preco_atacado: precoAtacado,
+    tem_vasilhame: temVasilhame,
+    valor_vasilhame: valorVasilhame
   };
   if(editImgBase64 !== null) payload.imagem = editImgBase64;
   const res = await api('/produtos/atualizar','POST', payload);
@@ -6902,7 +7845,7 @@ async function confirmarExcluirProduto(){
   const nome = document.getElementById('ep-nome').value;
   if(!await _customConfirm(`Excluir o produto "${nome}"?<br><br>Ele não aparecerá mais no cardápio.`,{icon:'🗑️',title:'Excluir produto',confirmText:'Excluir',confirmColor:'#dc2626'})) return;
   const res = await api('/produtos/inativar','POST',{id});
-  if(res&&res.ok){closeModalProd();await loadEstoque();await loadProdutos();toast(`"${nome}" removido!`);}
+  if(res&&res.ok){closeModalProd();await loadEstoque();await loadProdutos();toast(res.msg||`"${nome}" removido!`);}
   else toast('Erro ao excluir','err');
 }
 
@@ -7030,10 +7973,16 @@ async function cadastrarProduto(){
   const codigo=document.getElementById('c-codigo').value.trim();
   const descricao=(document.getElementById('c-descricao')||{}).value||'';
   const temAdic=document.getElementById('c-tem-adicionais').checked?1:0;
+  const qtdAtacado=parseInt(document.getElementById('c-qtd-atacado').value)||0;
+  const precoAtacado=parseFloat(document.getElementById('c-preco-atacado').value)||0;
+  const temVasilhame=document.getElementById('c-tem-vasilhame').checked?1:0;
+  const valorVasilhame=parseFloat(document.getElementById('c-valor-vasilhame').value)||0;
   if(!nome||isNaN(preco)||preco<=0){toast('Informe nome e preço de venda!','err');return}
   if(isNaN(qtd)){toast('Informe a quantidade!','err');return}
   const res=await api('/produtos','POST',{nome,preco,quantidade:qtd,unidades:un,categoria:cat,
-                                          custo,markup,imagem:imgBase64,codigo,descricao,tem_adicionais:temAdic});
+                                          custo,markup,imagem:imgBase64,codigo,descricao,tem_adicionais:temAdic,
+                                          qtd_min_atacado:qtdAtacado,preco_atacado:precoAtacado,
+                                          tem_vasilhame:temVasilhame,valor_vasilhame:valorVasilhame});
   if(res&&res.ok){
     for(const ing of _prodIngTemp){
       await api('/produtos/ingredientes','POST',{produto_id:res.id,ingrediente_id:ing.ingrediente_id,quantidade_usada:ing.quantidade_usada});
@@ -7041,10 +7990,16 @@ async function cadastrarProduto(){
     for(const ad of _prodAdicTemp){
       await api('/produtos/adicionais','POST',{produto_id:res.id,adicional_id:ad.id});
     }
-    ['c-nome','c-preco','c-qtd','c-custo','c-markup','c-codigo','c-descricao'].forEach(id=>{var e=document.getElementById(id);if(e)e.value=''});
+    for(const un2 of _prodUnidTemp){
+      await api('/produtos/unidades','POST',{produto_id:res.id,nome:un2.nome,fator_conversao:un2.fator_conversao,preco:un2.preco});
+    }
+    ['c-nome','c-preco','c-qtd','c-custo','c-markup','c-codigo','c-descricao','c-qtd-atacado','c-preco-atacado','c-valor-vasilhame'].forEach(id=>{var e=document.getElementById(id);if(e)e.value=''});
     document.getElementById('c-tem-adicionais').checked=false;
+    document.getElementById('c-tem-vasilhame').checked=false;
+    onVasilhameChange('c');
     _prodIngTemp=[];renderIngProduto();
     _prodAdicTemp=[];renderAdicionaisAdmin('c');
+    _prodUnidTemp=[];renderUnidadesAdmin('c');
     document.getElementById('markup-preview').style.display='none';
     removerImagem();
     await loadCategorias();
@@ -8873,7 +9828,7 @@ async function fazerLogin(){
     _updateMobUser();
     _iniciarAutoRefresh();
     _restoreSidebarState();
-    loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal();
+    loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal(); loadConvenios();
     checkForUpdate();
   } else {
     err.textContent = d.erro||'Erro ao fazer login';
@@ -9261,6 +10216,98 @@ function showRelTab(id, btn){
   document.querySelectorAll('.rel-tab').forEach(el=>el.classList.remove('active'));
   document.getElementById('rel-'+id).classList.add('active');
   btn.classList.add('active');
+  if(id==='venditem') loadRelatorioVendasPorItem();
+  if(id==='estoque')  loadRelatorioPosicaoEstoque();
+  if(id==='receberdet'){ _popularSelectConvenioReceber(); loadRelatorioContasReceber(); }
+}
+
+// ── VENDAS POR ITEM ─────────────────────────────────────────────────────────
+var _ultimoRelVendasItem=null;
+async function loadRelatorioVendasPorItem(){
+  const de=document.getElementById('rel-de').value, ate=document.getElementById('rel-ate').value;
+  const qs=new URLSearchParams(); if(de) qs.set('de',de); if(ate) qs.set('ate',ate);
+  const d=await api('/relatorio/vendas-item'+(qs.toString()?'?'+qs:'')); if(!d) return;
+  _ultimoRelVendasItem=d;
+  document.getElementById('rvi-qtd').textContent=d.total_itens;
+  document.getElementById('rvi-receita').textContent=fmt(d.total_receita);
+  const tb=document.getElementById('rel-venditem-tbody');
+  if(!d.itens.length){ tb.innerHTML='<tr><td colspan="6"><div class="empty">Nenhuma venda no período</div></td></tr>'; return; }
+  tb.innerHTML=d.itens.map(i=>
+    '<tr><td style="font-weight:700">'+i.nome+'</td><td>'+(i.categoria||'—')+'</td>'+
+    '<td>'+i.qtd_vendida+'</td><td>'+fmt(i.preco_medio)+'</td><td>'+fmt(i.receita)+'</td><td>'+i.participacao_pct+'%</td></tr>'
+  ).join('');
+}
+function exportarVendasPorItem(formato){
+  const d=_ultimoRelVendasItem; if(!d||!d.itens.length){toast('Nada para exportar','err');return}
+  const header=['Produto','Categoria','Qtd. vendida','Preço médio','Receita','% do total'];
+  const rows=d.itens.map(i=>[i.nome,i.categoria||'',i.qtd_vendida,i.preco_medio.toFixed(2),i.receita.toFixed(2),i.participacao_pct+'%']);
+  if(formato==='excel') exportarCSV(header,rows,'vendas_por_item.csv');
+  else exportarPDF('Vendas por Item',header,rows,['Receita total',fmt(d.total_receita)]);
+}
+
+// ── POSIÇÃO DE ESTOQUE ──────────────────────────────────────────────────────
+var _ultimoRelEstoque=null;
+async function loadRelatorioPosicaoEstoque(){
+  const d=await api('/relatorio/posicao-estoque'); if(!d) return;
+  _ultimoRelEstoque=d;
+  document.getElementById('rpe-itens').textContent=d.total_itens;
+  document.getElementById('rpe-custo').textContent=fmt(d.total_custo);
+  document.getElementById('rpe-venda').textContent=fmt(d.total_venda);
+  document.getElementById('rpe-lucro').textContent=fmt(d.lucro_potencial);
+  const tb=document.getElementById('rel-estoque-tbody');
+  if(!d.produtos.length){ tb.innerHTML='<tr><td colspan="7"><div class="empty">Nenhum produto cadastrado</div></td></tr>'; return; }
+  tb.innerHTML=d.produtos.map(p=>
+    '<tr><td style="font-weight:700">'+p.nome+'</td><td>'+(p.categoria||'—')+'</td>'+
+    '<td>'+p.quantidade+' '+(p.unidades||'un')+'</td><td>'+fmt(p.custo)+'</td><td>'+fmt(p.preco)+'</td>'+
+    '<td>'+fmt(p.valor_custo_total)+'</td><td>'+fmt(p.valor_venda_total)+'</td></tr>'
+  ).join('');
+}
+function exportarPosicaoEstoque(formato){
+  const d=_ultimoRelEstoque; if(!d||!d.produtos.length){toast('Nada para exportar','err');return}
+  const header=['Produto','Categoria','Qtd.','Custo unit.','Preço venda','Valor em custo','Valor potencial'];
+  const rows=d.produtos.map(p=>[p.nome,p.categoria||'',p.quantidade+' '+(p.unidades||'un'),p.custo.toFixed(2),p.preco.toFixed(2),p.valor_custo_total.toFixed(2),p.valor_venda_total.toFixed(2)]);
+  if(formato==='excel') exportarCSV(header,rows,'posicao_estoque.csv');
+  else exportarPDF('Posição de Estoque',header,rows,['Valor total em custo',fmt(d.total_custo)]);
+}
+
+// ── CONTAS A RECEBER DETALHADO ──────────────────────────────────────────────
+var _ultimoRelContasReceber=null;
+async function _popularSelectConvenioReceber(){
+  const sel=document.getElementById('rd-f-convenio');
+  if(sel.options.length>1) return; // já populado
+  if(!convenios.length) await loadConvenios();
+  sel.innerHTML='<option value="">Todos</option>'+convenios.map(c=>'<option value="'+c.id+'">'+c.nome+'</option>').join('');
+}
+async function loadRelatorioContasReceber(){
+  const qs=new URLSearchParams();
+  const cv=document.getElementById('rd-f-convenio').value; if(cv) qs.set('convenio_id',cv);
+  const cli=document.getElementById('rd-f-cliente').value.trim(); if(cli) qs.set('cliente_nome',cli);
+  const eDe=document.getElementById('rd-f-emissao-de').value; if(eDe) qs.set('emissao_de',eDe);
+  const eAte=document.getElementById('rd-f-emissao-ate').value; if(eAte) qs.set('emissao_ate',eAte);
+  const vDe=document.getElementById('rd-f-venc-de').value; if(vDe) qs.set('vencimento_de',vDe);
+  const vAte=document.getElementById('rd-f-venc-ate').value; if(vAte) qs.set('vencimento_ate',vAte);
+  const st=document.getElementById('rd-f-status').value; if(st) qs.set('status',st);
+  const d=await api('/relatorio/contas-receber'+(qs.toString()?'?'+qs:'')); if(!d) return;
+  _ultimoRelContasReceber=d;
+  document.getElementById('rd-total').textContent=fmt(d.total);
+  document.getElementById('rd-pendente').textContent=fmt(d.total_pendente);
+  const tb=document.getElementById('rel-receberdet-tbody');
+  if(!d.contas.length){ tb.innerHTML='<tr><td colspan="7"><div class="empty">Nenhuma conta encontrada com esses filtros</div></td></tr>'; return; }
+  tb.innerHTML=d.contas.map(c=>{
+    const stBadge=c.status==='pendente'?'<span style="color:#f59e0b;font-weight:700">⏳ Pendente</span>':'<span style="color:#16a34a;font-weight:700">✅ Pago</span>';
+    return '<tr><td>'+fmtData(c.data_emissao)+'</td><td>'+fmtData(c.vencimento)+'</td>'+
+      '<td style="font-weight:700">'+(c.cliente_nome||c.descricao||'—')+'</td>'+
+      '<td>'+(c.convenio_nome||'<span style="color:#555">—</span>')+'</td>'+
+      '<td>'+(c.vendedor_nome||'<span style="color:#555">—</span>')+'</td>'+
+      '<td>'+fmt(c.valor)+'</td><td>'+stBadge+'</td></tr>';
+  }).join('');
+}
+function exportarContasReceber(formato){
+  const d=_ultimoRelContasReceber; if(!d||!d.contas.length){toast('Nada para exportar','err');return}
+  const header=['Emissão','Vencimento','Devedor','Convênio','Vendedor','Valor','Status'];
+  const rows=d.contas.map(c=>[fmtData(c.data_emissao),fmtData(c.vencimento),c.cliente_nome||c.descricao||'',c.convenio_nome||'',c.vendedor_nome||'',c.valor.toFixed(2),c.status]);
+  if(formato==='excel') exportarCSV(header,rows,'contas_a_receber.csv');
+  else exportarPDF('Contas a Receber',header,rows,['Total pendente',fmt(d.total_pendente)]);
 }
 
 function relPeriodo(dias){
@@ -9275,6 +10322,43 @@ function relLimpar(){
   document.getElementById('rel-de').value  = '';
   document.getElementById('rel-ate').value = '';
   loadRelatorio();
+}
+
+// ── EXPORTAÇÃO GENÉRICA (Excel/CSV + PDF via impressão) ────────────────────────
+function exportarCSV(header, rows, filename){
+  if(!rows.length){ toast('Nada para exportar','err'); return; }
+  const csv = [header].concat(rows).map(r=>r.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(';')).join('\n');
+  const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href=url; a.download=filename.endsWith('.csv')?filename:filename+'.csv'; a.click();
+  URL.revokeObjectURL(url);
+  toast('Exportado! Abre certinho no Excel.');
+}
+function exportarPDF(titulo, header, rows, totalLabel){
+  if(!rows.length){ toast('Nada para exportar','err'); return; }
+  const empresa=(configAtual&&configAtual.nome_empresa)||'Maná Food';
+  const win=window.open('','_blank');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titulo}</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:24px;color:#111}
+      h1{font-size:18px;margin:0 0 2px}
+      .sub{font-size:12px;color:#555;margin-bottom:16px}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
+      th{background:#f1f1f1}
+      tfoot td{font-weight:700;background:#fafafa}
+      @media print{ body{padding:0} }
+    </style></head><body>
+    <h1>${empresa}</h1>
+    <div class="sub">${titulo} — gerado em ${new Date().toLocaleString('pt-BR')}</div>
+    <table><thead><tr>${header.map(h=>'<th>'+h+'</th>').join('')}</tr></thead>
+    <tbody>${rows.map(r=>'<tr>'+r.map(c=>'<td>'+(c==null?'':c)+'</td>').join('')+'</tr>').join('')}</tbody>
+    ${totalLabel?'<tfoot><tr><td colspan="'+(header.length-1)+'">'+totalLabel[0]+'</td><td>'+totalLabel[1]+'</td></tr></tfoot>':''}
+    </table>
+    <script>window.onload=()=>{window.print()}<\/script>
+    </body></html>`;
+  win.document.write(html); win.document.close();
 }
 
 async function loadRelatorio(){
@@ -9490,7 +10574,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
       _updateMobUser();
       _iniciarAutoRefresh();
       updateSyncBadge();
-      loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal();
+      loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal(); loadConvenios();
       checkForUpdate();
       if(_pendingSyncCount>0) syncQueue();
       return;
