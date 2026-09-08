@@ -1,4 +1,8 @@
-﻿## v4.8.3
+﻿## v4.8.4
+- Correção: venda com pagamento misto agora mostra o detalhe (dinheiro/PIX/cartão) ao clicar, no caixa e nos relatórios
+- - Correção: saldo de dinheiro no fechamento de caixa considerava errado o valor de vendas mistas
+
+## v4.8.3
 - Melhorias e correções de bugs.
 
 ## v4.8.2

@@ -879,7 +879,7 @@ def api_registrar_venda(data):
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (data_venda_local,total,tipo_pag,observacao,cliente_id,cliente_nm,caixa_id,
              entrega,ent_nome,ent_tel,ent_end,ent_bairro,ent_ref,ent_taxa,ent_obs,
-             tipo_atend,mesa,nome_cli_mesa,nome_cli_balcao,str(pags_mix) if pags_mix else '',
+             tipo_atend,mesa,nome_cli_mesa,nome_cli_balcao,json.dumps(pags_mix, ensure_ascii=False) if pags_mix else '',
              desconto,gorjeta,cupom,cupom_desconto,
              'aberta' if tipo_atend in ('mesa','local') else 'fechada',
              offline_id))
@@ -2926,6 +2926,61 @@ def api_listar_log(params):
 
 # ─── CAIXA ───────────────────────────────────────────────────────────────────
 
+def _agrupar_vendas_por_pagamento(where_sql, args, tabela_alias='vendas'):
+    """Agrupa vendas por forma de pagamento. Vendas com pagamento MISTO continuam
+       aparecendo como uma linha só ('misto'), mas carregam um campo 'detalhe' com
+       a abertura de quanto foi de cada forma real (pra mostrar ao clicar).
+       Retorna (linhas_exibicao, totais_reais) — totais_reais já soma a parte de
+       cada forma real mesmo quando ela veio de dentro de uma venda mista (usado
+       pra cálculos internos como o saldo esperado em dinheiro no caixa)."""
+    conn = get_connection(); c = conn.cursor()
+    linhas = []
+    totais_reais = {}
+
+    def _soma_real(forma, valor):
+        totais_reais[forma] = totais_reais.get(forma, 0) + valor
+
+    # 1) Vendas com forma única (não misto)
+    c.execute(f"SELECT tipo_pagamento, COUNT(*) AS qtd, COALESCE(SUM(total),0) AS total "
+              f"FROM {tabela_alias} WHERE {where_sql} AND tipo_pagamento!='misto' GROUP BY tipo_pagamento", args)
+    for r in c.fetchall():
+        linhas.append({'tipo_pagamento': r['tipo_pagamento'], 'qtd': r['qtd'], 'total': r['total']})
+        _soma_real(r['tipo_pagamento'], r['total'])
+
+    # 2) Vendas mistas — vira 1 linha 'misto', com o detalhe de cada forma usada dentro dela
+    c.execute(f"SELECT pagamentos_mix, total FROM {tabela_alias} WHERE {where_sql} AND tipo_pagamento='misto'", args)
+    misto_rows = c.fetchall()
+    if misto_rows:
+        detalhe_acc = {}
+        qtd_misto = 0
+        total_misto = 0.0
+        for r in misto_rows:
+            qtd_misto += 1
+            total_misto += r['total']
+            partes = []
+            if r['pagamentos_mix']:
+                try: partes = json.loads(r['pagamentos_mix'])
+                except Exception: partes = []
+            if not partes:
+                # venda antiga salva com o bug do str() — sem como recuperar o detalhe
+                detalhe_acc['outro'] = detalhe_acc.get('outro', 0) + r['total']
+                _soma_real('outro', r['total'])
+                continue
+            for p in partes:
+                forma = p.get('tipo') or p.get('forma_pagamento') or 'outro'
+                valor = float(p.get('valor') or p.get('valor_pagamento') or 0)
+                if valor > 0:
+                    detalhe_acc[forma] = detalhe_acc.get(forma, 0) + valor
+                    _soma_real(forma, valor)
+        linhas.append({
+            'tipo_pagamento': 'misto', 'qtd': qtd_misto, 'total': total_misto,
+            'detalhe': [{'forma': k, 'valor': v} for k, v in detalhe_acc.items()]
+        })
+
+    conn.close()
+    return linhas, totais_reais
+
+
 def api_apuracao_caixa(params):
     """Apuração detalhada de um caixa (aberto ou fechado)"""
     conn = get_connection(); c = conn.cursor()
@@ -2945,14 +3000,9 @@ def api_apuracao_caixa(params):
     suprimentos = sum(m['valor'] for m in movimentos if m['tipo']=='suprimento')
     troco       = cx['troco_abertura'] or 0
 
-    # vendas por forma de pagamento (não canceladas)
-    c.execute("""SELECT tipo_pagamento,
-                        COUNT(*) AS qtd,
-                        COALESCE(SUM(total),0) AS total
-                 FROM vendas
-                 WHERE caixa_id=? AND (cancelada=0 OR cancelada IS NULL) AND (descartada=0 OR descartada IS NULL)
-                 GROUP BY tipo_pagamento""", (caixa_id,))
-    vendas_pag = [dict(r) for r in c.fetchall()]
+    # vendas por forma de pagamento (não canceladas) — misto vira 1 linha com detalhe
+    vendas_pag, totais_reais_pag = _agrupar_vendas_por_pagamento(
+        "caixa_id=? AND (cancelada=0 OR cancelada IS NULL) AND (descartada=0 OR descartada IS NULL)", (caixa_id,))
 
     # vendas canceladas
     c.execute("""SELECT COUNT(*) AS qtd, COALESCE(SUM(total),0) AS total
@@ -2961,7 +3011,7 @@ def api_apuracao_caixa(params):
 
     # totais
     total_vendas = sum(v['total'] for v in vendas_pag)
-    vendas_din   = next((v['total'] for v in vendas_pag if v['tipo_pagamento']=='dinheiro'), 0)
+    vendas_din   = totais_reais_pag.get('dinheiro', 0)  # já inclui a parte em dinheiro de vendas mistas
     vendas_outros= total_vendas - vendas_din
 
     # saldo esperado em dinheiro
@@ -3005,23 +3055,20 @@ def api_status_caixa(params=None):
         caixa_id = caixa['id']
         c.execute("SELECT * FROM movimentos_caixa WHERE caixa_id=? ORDER BY created_at ASC", (caixa_id,))
         caixa['movimentos'] = [dict(m) for m in c.fetchall()]
-        # vendas do caixa (não crediário)
-        # vendas válidas (não canceladas, não crediário)
-        c.execute("""SELECT tipo_pagamento, COUNT(*) AS qtd, COALESCE(SUM(total),0) AS total
-                     FROM vendas WHERE caixa_id=? AND tipo_pagamento!='crediario' AND cancelada=0 AND descartada=0
-                     GROUP BY tipo_pagamento""", (caixa_id,))
-        caixa['vendas_por_pag'] = [dict(r) for r in c.fetchall()]
+        # vendas do caixa (não crediário) — misto vira 1 linha com detalhe
+        caixa['vendas_por_pag'], totais_reais_st = _agrupar_vendas_por_pagamento(
+            "caixa_id=? AND tipo_pagamento!='crediario' AND cancelada=0 AND descartada=0", (caixa_id,))
         # total apenas das vendas finalizadas
         c.execute("SELECT COUNT(*) AS qtd, COALESCE(SUM(total),0) AS total FROM vendas WHERE caixa_id=? AND cancelada=0 AND descartada=0", (caixa_id,))
         vt = c.fetchone(); caixa['total_vendas'] = vt['total']; caixa['qtd_vendas'] = vt['qtd']
         # canceladas separadas (para mostrar no fechamento)
         c.execute("SELECT COUNT(*) AS qtd, COALESCE(SUM(total),0) AS total FROM vendas WHERE caixa_id=? AND cancelada=1", (caixa_id,))
         vc = c.fetchone(); caixa['qtd_canceladas'] = vc['qtd']; caixa['total_canceladas'] = vc['total']
-        # Calcula saldo em dinheiro
-        vendas_din = next((v for v in caixa['vendas_por_pag'] if v['tipo_pagamento']=='dinheiro'), None)
+        # Calcula saldo em dinheiro (já inclui a parte em dinheiro de vendas mistas)
+        vendas_din = totais_reais_st.get('dinheiro', 0)
         suprimentos = sum(m['valor'] for m in caixa['movimentos'] if m['tipo']=='suprimento')
         sangrias = sum(m['valor'] for m in caixa['movimentos'] if m['tipo']=='sangria')
-        caixa['saldo_dinheiro'] = (caixa.get('troco_abertura',0) or 0) + (vendas_din['total'] if vendas_din else 0) + suprimentos - sangrias
+        caixa['saldo_dinheiro'] = (caixa.get('troco_abertura',0) or 0) + vendas_din + suprimentos - sangrias
         caixa['sangria_avisos'] = caixa.get('sangria_avisos',0) or 0
         conn.close(); return {'aberto': True, 'caixa': caixa, 'usuario_caixa': caixa.get('usuario_nome','')}
     conn.close(); return {'aberto': False, 'caixa': None}
@@ -3177,13 +3224,9 @@ def api_relatorio(params):
                   GROUP BY date(v.data_venda) ORDER BY dia DESC LIMIT 30""", args_v)
     por_dia = [dict(r) for r in c.fetchall()]
 
-    # ── VENDAS POR FORMA DE PAGAMENTO ─────────────────────────────────────────
-    c.execute(f"""SELECT tipo_pagamento,
-                         COUNT(*) AS qtd,
-                         COALESCE(SUM(total),0) AS total
-                  FROM vendas v WHERE 1=1{where_v}
-                  GROUP BY tipo_pagamento ORDER BY total DESC""", args_v)
-    por_pagamento = [dict(r) for r in c.fetchall()]
+    # ── VENDAS POR FORMA DE PAGAMENTO (misto vira 1 linha, com detalhe ao clicar) ──
+    por_pagamento, _totais_reais_rel = _agrupar_vendas_por_pagamento(f"1=1{where_v}", args_v, tabela_alias='vendas v')
+    por_pagamento = sorted(por_pagamento, key=lambda r: r['total'], reverse=True)
 
     # ── VENDAS POR BANDEIRA DE CARTÃO ─────────────────────────────────────────
     c.execute(f"""SELECT tipo_pagamento, cartao_bandeira,

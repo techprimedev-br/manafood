@@ -8012,7 +8012,7 @@ async function cadastrarProduto(){
 
 // ── CONTROLE DE CAIXA ─────────────────────────────────────────────────────────
 const MOV_LABEL = {abertura:'🟢 Abertura',fechamento:'🔴 Fechamento',sangria:'🟠 Sangria',suprimento:'🔵 Suprimento'};
-const PAG_ICON  = {dinheiro:'💵',pix:'📱',cartao_credito:'💳',cartao_debito:'💳',crediario:'📒',outro:'🔹'};
+const PAG_ICON  = {dinheiro:'💵',pix:'📱',cartao_credito:'💳',cartao_debito:'💳',crediario:'📒',misto:'🔀',outro:'🔹'};
 let caixaAtual = null;
 
 function showCaixaTab(id, btn){
@@ -8128,8 +8128,7 @@ function renderCaixaStatus(d){
     // saldo em dinheiro
     const sangrias   = (cx.movimentos||[]).filter(m=>m.tipo==='sangria').reduce((s,m)=>s+m.valor,0);
     const suprimentos= (cx.movimentos||[]).filter(m=>m.tipo==='suprimento').reduce((s,m)=>s+m.valor,0);
-    const vendasDin  = (cx.vendas_por_pag||[]).find(v=>v.tipo_pagamento==='dinheiro');
-    const saldoDin   = (cx.troco_abertura||0) + (vendasDin?vendasDin.total:0) + suprimentos - sangrias;
+    const saldoDin   = cx.saldo_dinheiro!=null ? cx.saldo_dinheiro : (cx.troco_abertura||0) + suprimentos - sangrias;
     el.innerHTML=`
       <div class="caixa-status-aberto">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -8223,12 +8222,14 @@ function renderCaixaMovimentos(d){
   // vendas por pagamento
   const vPagEl = document.getElementById('caixa-vendas-pag');
   if(cx.vendas_por_pag && cx.vendas_por_pag.length){
+    guardarMistoCache('caixaStatus', cx.vendas_por_pag);
     const totalVpag = cx.vendas_por_pag.reduce((s,r)=>s+r.total,0);
     vPagEl.innerHTML = cx.vendas_por_pag.map(r=>{
       const pct = totalVpag>0?((r.total/totalVpag)*100).toFixed(0):0;
-      return `<div class="pay-row" style="padding:9px 12px">
+      const clicavel = r.tipo_pagamento==='misto';
+      return `<div class="pay-row" style="padding:9px 12px${clicavel?';cursor:pointer':''}" ${clicavel?"onclick=\"abrirDetalheMistoCache('caixaStatus')\"":''}>
         <div style="width:24px;font-size:16px">${PAG_ICON[r.tipo_pagamento]||'🔹'}</div>
-        <div style="flex:1;font-size:12px;font-weight:700">${PAG_LABEL[r.tipo_pagamento]||r.tipo_pagamento}<br><span style="font-weight:400;color:var(--text2)">${r.qtd} venda${r.qtd!==1?'s':''}</span></div>
+        <div style="flex:1;font-size:12px;font-weight:700">${PAG_LABEL[r.tipo_pagamento]||r.tipo_pagamento}<br><span style="font-weight:400;color:var(--text2)">${r.qtd} venda${r.qtd!==1?'s':''}${clicavel?' · ver formas usadas':''}</span></div>
         <div class="pay-bar-wrap"><div class="pay-bar" style="width:${pct}%"></div></div>
         <div style="width:90px;text-align:right;font-size:13px;font-weight:700;color:var(--accent)">${fmt(r.total)}</div>
       </div>`;
@@ -8465,17 +8466,19 @@ async function abrirModalFechar(caixaIdAlvo){
   const cx = d.caixa;
   const sangrias    = (cx.movimentos||[]).filter(m=>m.tipo==='sangria').reduce((s,m)=>s+m.valor,0);
   const suprimentos = (cx.movimentos||[]).filter(m=>m.tipo==='suprimento').reduce((s,m)=>s+m.valor,0);
-  const vendasDin   = (cx.vendas_por_pag||[]).find(v=>v.tipo_pagamento==='dinheiro');
-  const saldoDin    = (cx.troco_abertura||0) + (vendasDin?vendasDin.total:0) + suprimentos - sangrias;
+  const saldoDin    = cx.saldo_dinheiro!=null ? cx.saldo_dinheiro : ((cx.troco_abertura||0) + ((cx.vendas_por_pag||[]).find(v=>v.tipo_pagamento==='dinheiro')||{}).total||0) + suprimentos - sangrias;
   const qtdCancel   = cx.qtd_canceladas||0;
   const totalCancel = cx.total_canceladas||0;
 
-  // Monta linhas por forma de pagamento (só finalizadas)
-  const pagsRows = (cx.vendas_por_pag||[]).map(p=>`
-    <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
-      <span style="color:var(--text2)">${p.tipo_pagamento.charAt(0).toUpperCase()+p.tipo_pagamento.slice(1)} (${p.qtd}x)</span>
+  // Monta linhas por forma de pagamento (só finalizadas) — "Misto" abre o detalhe ao clicar
+  guardarMistoCache('caixaFechamento', cx.vendas_por_pag||[]);
+  const pagsRows = (cx.vendas_por_pag||[]).map(p=>{
+    const clicavel = p.tipo_pagamento==='misto';
+    return `
+    <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0${clicavel?';cursor:pointer;text-decoration:underline':''}" ${clicavel?"onclick=\"abrirDetalheMistoCache('caixaFechamento')\"":''}>
+      <span style="color:var(--text2)">${p.tipo_pagamento.charAt(0).toUpperCase()+p.tipo_pagamento.slice(1)} (${p.qtd}x)${clicavel?' 🔎':''}</span>
       <span style="font-weight:700">${fmt(p.total)}</span>
-    </div>`).join('');
+    </div>`;}).join('');
 
   document.getElementById('fc-resumo').innerHTML=`
     <div class="caixa-grid" style="margin:0 0 10px">
@@ -10209,7 +10212,32 @@ async function salvarConfig(){
 // ── RELATÓRIOS ────────────────────────────────────────────────────────────────
 
 const PAG_LABEL = {dinheiro:'💵 Dinheiro', pix:'📱 PIX', cartao_credito:'💳 Crédito',
-                   cartao_debito:'💳 Débito', crediario:'📒 Crediário', outro:'🔹 Outro'};
+                   cartao_debito:'💳 Débito', crediario:'📒 Crediário', misto:'🔀 Misto', outro:'🔹 Outro'};
+
+var _mistoRowsCache = {}; // guarda os registros 'misto' de cada tela, pra abrir o detalhe sem serializar no HTML
+function guardarMistoCache(chave, linhas){
+  const m = (linhas||[]).find(r=>r.tipo_pagamento==='misto');
+  _mistoRowsCache[chave] = m || null;
+}
+function abrirDetalheMistoCache(chave){
+  abrirDetalheMisto(_mistoRowsCache[chave]);
+}
+function abrirDetalheMisto(row){
+  if(!row || !row.detalhe || !row.detalhe.length) return;
+  const html =
+    '<div id="modal-detalhe-misto" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)this.remove()">'+
+    '<div style="background:#fff;border-radius:12px;padding:18px;width:320px;max-width:92vw;max-height:80vh;overflow:auto">'+
+    '<div style="font-weight:700;font-size:15px;margin-bottom:2px">🔀 Venda(s) com pagamento misto</div>'+
+    '<div style="font-size:12px;color:#64748b;margin-bottom:12px">'+row.qtd+' venda'+(row.qtd!==1?'s':'')+' · total '+fmt(row.total)+'</div>'+
+    row.detalhe.map(d=>
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid #f1f5f9;font-size:13px">'+
+      '<span>'+(PAG_ICON[d.forma]||'🔹')+' '+(PAG_LABEL[d.forma]||d.forma)+'</span>'+
+      '<span style="font-weight:700">'+fmt(d.valor)+'</span></div>'
+    ).join('')+
+    '<button onclick="document.getElementById(\'modal-detalhe-misto\').remove()" style="width:100%;margin-top:14px;padding:10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff">Fechar</button>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
 
 function showRelTab(id, btn){
   document.querySelectorAll('.rel-sub').forEach(el=>el.classList.remove('active'));
@@ -10448,21 +10476,25 @@ async function loadRelatorio(){
   }
 
   // ── FORMA DE PAGAMENTO ─────────────────────────────────────────────────────
+  guardarMistoCache('relatorio', d.por_pagamento);
   const totalPag = d.por_pagamento.reduce((s,r)=>s+r.total,0);
   const kpiPag   = document.getElementById('rel-kpi-pag');
-  kpiPag.innerHTML = d.por_pagamento.map(r=>`
-    <div class="rel-kpi">
-      <div class="rel-kpi-label">${PAG_LABEL[r.tipo_pagamento]||r.tipo_pagamento}</div>
+  kpiPag.innerHTML = d.por_pagamento.map(r=>{
+    const clicavel = r.tipo_pagamento==='misto';
+    return `
+    <div class="rel-kpi" ${clicavel?'style="cursor:pointer" onclick="abrirDetalheMistoCache(\'relatorio\')"':''}>
+      <div class="rel-kpi-label">${PAG_LABEL[r.tipo_pagamento]||r.tipo_pagamento}${clicavel?' 🔎':''}</div>
       <div class="rel-kpi-val">${fmt(r.total)}</div>
       <div class="rel-kpi-sub">${r.qtd} venda${r.qtd!==1?'s':''}</div>
-    </div>`).join('');
+    </div>`;}).join('');
 
   const bars = document.getElementById('rel-pag-bars');
   if(d.por_pagamento.length){
     bars.innerHTML = d.por_pagamento.map(r=>{
       const pct = totalPag>0?((r.total/totalPag)*100).toFixed(1):0;
-      return `<div class="pay-row">
-        <div style="width:130px;font-size:12px;font-weight:700;color:var(--text)">${PAG_LABEL[r.tipo_pagamento]||r.tipo_pagamento}</div>
+      const clicavel = r.tipo_pagamento==='misto';
+      return `<div class="pay-row" ${clicavel?'style="cursor:pointer" onclick="abrirDetalheMistoCache(\'relatorio\')"':''}>
+        <div style="width:130px;font-size:12px;font-weight:700;color:var(--text)">${PAG_LABEL[r.tipo_pagamento]||r.tipo_pagamento}${clicavel?' 🔎':''}</div>
         <div class="pay-bar-wrap"><div class="pay-bar" style="width:${pct}%"></div></div>
         <div style="width:50px;text-align:right;font-size:12px;font-weight:700;color:var(--accent)">${pct}%</div>
         <div style="width:90px;text-align:right;font-size:12px;color:var(--text2)">${fmt(r.total)}</div>
