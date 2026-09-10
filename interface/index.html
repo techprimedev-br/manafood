@@ -6222,7 +6222,8 @@ function _htmlDAV(v){
   const itensRows = payload.itens.map(i=>{
     const sub = i.quantidade*i.preco_unitario;
     const nome = (function(){var _p=produtos.find(function(p){return p.id===i.produto_id;});return _p?_p.nome:'Produto #'+i.produto_id;})();
-    return `<tr><td>${nome}</td><td style="text-align:center">${i.quantidade}</td><td style="text-align:right">R$ ${i.preco_unitario.toFixed(2).replace('.',',')}</td><td style="text-align:right">R$ ${sub.toFixed(2).replace('.',',')}</td></tr>`;
+    const obsRow = i.observacao ? `<tr><td colspan="4" style="font-size:11px;font-style:italic;padding-top:0;padding-bottom:4px">↳ ${i.observacao}</td></tr>` : '';
+    return `<tr><td>${nome}</td><td style="text-align:center">${i.quantidade}</td><td style="text-align:right">R$ ${i.preco_unitario.toFixed(2).replace('.',',')}</td><td style="text-align:right">R$ ${sub.toFixed(2).replace('.',',')}</td></tr>${obsRow}`;
   }).join('');
   const entregaSection = payload.entrega ? `
     <div class="section">
@@ -6289,7 +6290,8 @@ function _htmlCozinha(v){
   const atendLabel={balcao:'Balcão',mesa:'Mesa',local:'No local',entrega:'🛵 Entrega'};
   const itensRows = payload.itens.map(i=>{
     const nome = (function(){var _p=produtos.find(function(p){return p.id===i.produto_id;});return _p?_p.nome:'Produto #'+i.produto_id;})();
-    return `<tr><td class="qty">${i.quantidade}x</td><td>${nome}</td></tr>`;
+    const obs = i.observacao ? '<div style="font-size:12px;font-weight:900;padding-left:2px">⚠ '+i.observacao+'</div>' : '';
+    return `<tr><td class="qty">${i.quantidade}x</td><td>${nome}${obs}</td></tr>`;
   }).join('');
   const mesaInfo = payload.mesa
               ? '<div class="mesa-big">🪑 ' + payload.mesa + '</div>' + (payload.nome_cliente_mesa ? '<div class="mesa-sub">' + payload.nome_cliente_mesa + '</div>' : '')
@@ -7531,17 +7533,19 @@ function _textoDAV(){
   txt+='--------------------------------\n';
   txt+='PRODUTO          QTD  UNIT  TOTAL\n';
   txt+='--------------------------------\n';
-  if(v.itens){v.itens.forEach(function(i){
-    var nome=(i.nome||'').substring(0,16).padEnd(16);
-    var qtd=String(i.quantidade||i.qtd||1).padStart(3);
-    var unit=String(parseFloat(i.preco_unitario||i.preco||0).toFixed(2)).padStart(6);
-    var sub=String((parseFloat(i.preco_unitario||i.preco||0)*(i.quantidade||i.qtd||1)).toFixed(2)).padStart(7);
+  if(v.payload&&v.payload.itens){v.payload.itens.forEach(function(i){
+    var nomeProd=(function(){var _p=produtos.find(function(p){return p.id===i.produto_id});return _p?_p.nome:'Produto #'+i.produto_id})();
+    var nome=nomeProd.substring(0,16).padEnd(16);
+    var qtd=String(i.quantidade||1).padStart(3);
+    var unit=String(parseFloat(i.preco_unitario||0).toFixed(2)).padStart(6);
+    var sub=String((parseFloat(i.preco_unitario||0)*(i.quantidade||1)).toFixed(2)).padStart(7);
     txt+=nome+qtd+unit+sub+'\n';
+    if(i.observacao)txt+='  -> '+i.observacao+'\n';
   })}
   txt+='--------------------------------\n';
   txt+='TOTAL: R$ '+(parseFloat(v.total||0)).toFixed(2)+'\n';
-  txt+='Pagamento: '+(v.tipo_pagamento||'dinheiro')+'\n';
-  if(v.tipo_atendimento&&v.tipo_atendimento!=='balcao')txt+='Atendimento: '+v.tipo_atendimento+'\n';
+  txt+='Pagamento: '+((v.payload&&v.payload.tipo_pagamento)||'dinheiro')+'\n';
+  if(v.payload&&v.payload.tipo_atendimento&&v.payload.tipo_atendimento!=='balcao')txt+='Atendimento: '+v.payload.tipo_atendimento+'\n';
   txt+='--------------------------------\n';
   txt+='    Obrigado pela preferencia!\n';
   txt+='================================\n';
@@ -7559,17 +7563,18 @@ function _textoCozinha(){
   txt+=new Date().toLocaleTimeString('pt-BR')+'\n';
   txt+='PEDIDO #'+v.venda_id+'\n';
   txt+='================================\n\n';
-  if(v.itens){v.itens.forEach(function(i){
-    txt+='  '+(i.quantidade||i.qtd||1)+'x '+(i.nome||'')+'\n';
+  if(v.payload&&v.payload.itens){v.payload.itens.forEach(function(i){
+    var nomeProd=(function(){var _p=produtos.find(function(p){return p.id===i.produto_id});return _p?_p.nome:'Produto #'+i.produto_id})();
+    txt+='  '+(i.quantidade||1)+'x '+nomeProd+'\n';
     if(i.observacao)txt+='     OBS: '+i.observacao+'\n';
   })}
   txt+='\n';
-  if(v.tipo_atendimento==='mesa')txt+='MESA: '+(v.mesa||'')+'\n';
-  if(v.tipo_atendimento==='entrega'){
-    txt+='ENTREGA: '+(v.entrega_nome||'')+'\n';
-    txt+='END: '+(v.entrega_endereco||'')+'\n';
-    if(v.entrega_bairro)txt+='BAIRRO: '+v.entrega_bairro+'\n';
-    if(v.entrega_telefone)txt+='TEL: '+v.entrega_telefone+'\n';
+  if(v.payload&&v.payload.tipo_atendimento==='mesa')txt+='MESA: '+(v.payload.mesa||'')+'\n';
+  if(v.payload&&v.payload.tipo_atendimento==='entrega'){
+    txt+='ENTREGA: '+(v.payload.entrega_nome||'')+'\n';
+    txt+='END: '+(v.payload.entrega_endereco||'')+'\n';
+    if(v.payload.entrega_bairro)txt+='BAIRRO: '+v.payload.entrega_bairro+'\n';
+    if(v.payload.entrega_telefone)txt+='TEL: '+v.payload.entrega_telefone+'\n';
   }
   txt+='================================\n';
   return txt;
