@@ -1,4 +1,7 @@
-﻿## v4.8.5
+﻿## v4.8.6
+- Correção de bug
+
+## v4.8.5
 - Ajuste do campo observação na impressão
 
 ## v4.8.4
