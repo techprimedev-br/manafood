@@ -1,4 +1,7 @@
-﻿## v4.8.6
+﻿## v4.9.0
+- ADICIONADO EM CONFIGURAÇÕES O TAMANHO DE LARGURA, SENDO 80MM E 58MM
+
+## v4.8.6
 - Correção de bug
 
 ## v4.8.5

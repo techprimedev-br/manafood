@@ -2796,6 +2796,7 @@ DEFAULTS_CONFIG = {
     'impressao_coz':  '1',
     'tema':           'default',
     'print_metodo':       'windows',
+    'print_largura':      '80',  # 80 ou 58 (mm) — largura do rolo da impressora térmica
     'print_balcao_ip':    '',
     'print_cozinha_ip':   '',
     'print_balcao_nome':  '',

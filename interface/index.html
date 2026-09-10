@@ -3187,6 +3187,13 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
                 <option value="direto">📄 Impressora Windows (nome)</option>
               </select>
             </div>
+            <div style="margin-top:12px">
+              <label style="font-size:12px;font-weight:700;color:var(--text2);display:block;margin-bottom:8px">Largura do rolo (impressora térmica)</label>
+              <select id="cfg-print-largura" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                <option value="80">80mm (padrão)</option>
+                <option value="58">58mm (compacta)</option>
+              </select>
+            </div>
             <div id="print-config-escpos" style="display:none;margin-top:10px">
               <div class="form-group"><label>IP Impressora Balcão</label><input id="cfg-print-balcao-ip" placeholder="192.168.0.100:9100"></div>
               <div class="form-group"><label>IP Impressora Cozinha</label><input id="cfg-print-cozinha-ip" placeholder="192.168.0.101:9100"></div>
@@ -6240,10 +6247,12 @@ function _htmlDAV(v){
       ${payload.nome_cliente_mesa?'<p style="text-align:center">'+payload.nome_cliente_mesa+'</p>':''}
     </div>` : (payload.tipo_atendimento==='local' && payload.nome_cliente_mesa)?`
     <div class="section"><p><b>🍽️ No local:</b> ${payload.nome_cliente_mesa}</p></div>`:'';
+  const larguraMm = parseInt(configAtual.print_largura || '80');
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <style>
+    @page{size:${larguraMm}mm auto;margin:0}
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Courier New',monospace;font-size:12px;width:80mm;padding:4mm;color:#000}
+    body{font-family:'Courier New',monospace;font-size:${larguraMm===58?'11px':'12px'};width:${larguraMm}mm;padding:${larguraMm===58?'2mm':'4mm'};color:#000}
     h1{font-size:16px;text-align:center;font-weight:900;letter-spacing:.05em;margin-bottom:2px}
     .sub{text-align:center;font-size:11px;margin-bottom:2px}
     .divider{border-top:1px dashed #000;margin:6px 0}
@@ -6256,7 +6265,7 @@ function _htmlDAV(v){
     .total-final{display:flex;justify-content:space-between;font-size:15px;font-weight:900;padding:4px 0;border-top:1px solid #000;margin-top:4px}
     .dav-num{font-size:14px;font-weight:900;text-align:center;margin:4px 0}
     .footer{text-align:center;font-size:10px;margin-top:8px;color:#555}
-    @media print{body{width:80mm}}
+    @media print{body{width:${larguraMm}mm}}
   </style></head><body>
   <h1>${empresa}</h1>
   <div class="sub">DAV — Documento Auxiliar de Venda</div>
@@ -6305,10 +6314,12 @@ function _htmlCozinha(v){
       <p>${payload.entrega_endereco||'—'}${payload.entrega_bairro?' — '+payload.entrega_bairro:''}</p>
       ${payload.entrega_obs?'<p><b>OBS: '+payload.entrega_obs+'</b></p>':''}
     </div>` : '';
+  const larguraMm = parseInt(configAtual.print_largura || '80');
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <style>
+    @page{size:${larguraMm}mm auto;margin:0}
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Courier New',monospace;font-size:13px;width:80mm;padding:4mm;color:#000}
+    body{font-family:'Courier New',monospace;font-size:${larguraMm===58?'12px':'13px'};width:${larguraMm}mm;padding:${larguraMm===58?'2mm':'4mm'};color:#000}
     h1{font-size:13px;text-align:center;font-weight:700;margin-bottom:2px}
     .tag{text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;background:#000;color:#fff;padding:3px 0;margin:4px 0}
     .num{font-size:36px;font-weight:900;text-align:center;letter-spacing:.02em;line-height:1.1}
@@ -6322,7 +6333,7 @@ function _htmlCozinha(v){
     .section{margin:5px 0;font-size:12px}
     .section-title{font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
     .hora{text-align:right;font-size:11px;color:#555}
-    @media print{body{width:80mm}}
+    @media print{body{width:${larguraMm}mm}}
   </style></head><body>
   <h1>COZINHA — ${empresa}</h1>
   <div class="hora">${agora}</div>
@@ -10067,6 +10078,7 @@ async function loadConfig(){
   document.getElementById('cfg-impressao-dav').checked = (data.impressao_dav||'1') === '1';
   document.getElementById('cfg-impressao-coz').checked = (data.impressao_coz||'1') === '1';
   var _pm=document.getElementById('cfg-print-metodo');if(_pm){_pm.value=data.print_metodo||'windows';_togglePrintConfig()}
+  var _pl=document.getElementById('cfg-print-largura');if(_pl){_pl.value=data.print_largura||'80'}
   var _pbi=document.getElementById('cfg-print-balcao-ip');if(_pbi)_pbi.value=data.print_balcao_ip||'';
   var _pci=document.getElementById('cfg-print-cozinha-ip');if(_pci)_pci.value=data.print_cozinha_ip||'';
   var _pbn=document.getElementById('cfg-print-balcao-nome');if(_pbn)_pbn.value=data.print_balcao_nome||'';
@@ -10195,6 +10207,7 @@ async function salvarConfig(){
     impressao_dav:  document.getElementById('cfg-impressao-dav').checked ? '1' : '0',
     impressao_coz:  document.getElementById('cfg-impressao-coz').checked ? '1' : '0',
     print_metodo:       (document.getElementById('cfg-print-metodo')||{}).value||'windows',
+    print_largura:      (document.getElementById('cfg-print-largura')||{}).value||'80',
     print_balcao_ip:    (document.getElementById('cfg-print-balcao-ip')||{}).value||'',
     print_cozinha_ip:   (document.getElementById('cfg-print-cozinha-ip')||{}).value||'',
     print_balcao_nome:  (document.getElementById('cfg-print-balcao-nome')||{}).value||'',
