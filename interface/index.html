@@ -3190,10 +3190,21 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
             <div style="margin-top:12px">
               <label style="font-size:12px;font-weight:700;color:var(--text2);display:block;margin-bottom:8px">Largura do rolo (impressora térmica)</label>
               <select id="cfg-print-largura" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px">
-                <option value="80">80mm (padrão)</option>
-                <option value="58">58mm (compacta)</option>
+                <option value="80">80mm (padrão) — 48 colunas</option>
+                <option value="55">55mm (compacta) — 32 colunas</option>
               </select>
             </div>
+            <div style="margin-top:12px">
+              <label style="font-size:12px;font-weight:700;color:var(--text2);display:block;margin-bottom:8px">Modelo da comanda da cozinha</label>
+              <select id="cfg-cozinha-modelo" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+                <option value="detalhado">📋 Detalhado (checklist + obs por item)</option>
+                <option value="destacado">🔲 Destacado (bloco grande por item)</option>
+              </select>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="cfg-dav-cnpj" style="width:16px;height:16px;accent-color:#ea580c">
+              Imprimir CNPJ no DAV (opcional)
+            </label>
             <div id="print-config-escpos" style="display:none;margin-top:10px">
               <div class="form-group"><label>IP Impressora Balcão</label><input id="cfg-print-balcao-ip" placeholder="192.168.0.100:9100"></div>
               <div class="form-group"><label>IP Impressora Cozinha</label><input id="cfg-print-cozinha-ip" placeholder="192.168.0.101:9100"></div>
@@ -4506,6 +4517,7 @@ async function finalizarVenda(){
     pagsMixFinal = pagsMix.filter(p=>p.valor>0);
   }
   const obsGeral=(document.getElementById('obs-geral')||{}).value||'';
+  const valorRecebido=parseFloat((document.getElementById('troco-recebido')||{}).value)||0;
   const cartaoBandeira=(document.getElementById('cartao-bandeira')||{}).value||'';
   const cartaoNsu=(document.getElementById('cartao-nsu')||{}).value||'';
   if((tipoPagFinal==='cartao_credito'||tipoPagFinal==='cartao_debito')&&!cartaoBandeira){
@@ -4516,7 +4528,8 @@ async function finalizarVenda(){
     desconto:window._descontoVenda||0,
     gorjeta:window._gorjeta||0,
     cupom:window._cupomCodigo||'',
-    cupom_desconto:window._cupomDesconto||0}, _u());
+    cupom_desconto:window._cupomDesconto||0,
+    valor_recebido:valorRecebido}, _u());
   if(tipoPag==='crediario') payload.vencimento=document.getElementById('cre-venc').value;
   // tipo de atendimento
   payload.tipo_atendimento = tipoAtend;
@@ -6218,135 +6231,300 @@ function abrirModalImpressao(venda_id, payload, total){
   document.getElementById('modal-impressao').classList.add('open');
 }
 
-function _htmlDAV(v){
-  const {venda_id, payload, total} = v;
-  const agora = new Date().toLocaleString('pt-BR');
-  const label={dinheiro:'Dinheiro',cartao_credito:'Cartão Crédito',cartao_debito:'Cartão Débito',pix:'PIX',crediario:'Crediário'};
-  const atendLabel={balcao:'Balcão',mesa:'Mesa',local:'No local',entrega:'Entrega'};
-  const empresa = configAtual.nome_empresa || 'Maná Food';
-  const subtotal = payload.itens.reduce((s,i)=>s+(i.quantidade*i.preco_unitario),0);
-  const taxa = payload.entrega_taxa||0;
-  const itensRows = payload.itens.map(i=>{
-    const sub = i.quantidade*i.preco_unitario;
-    const nome = (function(){var _p=produtos.find(function(p){return p.id===i.produto_id;});return _p?_p.nome:'Produto #'+i.produto_id;})();
-    const obsRow = i.observacao ? `<tr><td colspan="4" style="font-size:11px;font-style:italic;padding-top:0;padding-bottom:4px">↳ ${i.observacao}</td></tr>` : '';
-    return `<tr><td>${nome}</td><td style="text-align:center">${i.quantidade}</td><td style="text-align:right">R$ ${i.preco_unitario.toFixed(2).replace('.',',')}</td><td style="text-align:right">R$ ${sub.toFixed(2).replace('.',',')}</td></tr>${obsRow}`;
-  }).join('');
-  const entregaSection = payload.entrega ? `
-    <div class="section">
-      <div class="section-title">📍 ENTREGA</div>
-      <p><b>Cliente:</b> ${payload.entrega_nome||'—'}</p>
-      ${payload.entrega_telefone?'<p><b>Tel:</b> '+payload.entrega_telefone+'</p>':''}
-      <p><b>Endereço:</b> ${payload.entrega_endereco||'—'}${payload.entrega_bairro?' — '+payload.entrega_bairro:''}</p>
-      ${payload.entrega_referencia?'<p><b>Ref:</b> '+payload.entrega_referencia+'</p>':''}
-      ${payload.entrega_obs?'<p><b>Obs:</b> '+payload.entrega_obs+'</p>':''}
-    </div>` : '';
-  const mesaSection = (payload.tipo_atendimento==='mesa' && payload.mesa) ? `
-    <div class="section">
-      <div style="font-size:18px;font-weight:900;text-align:center;letter-spacing:.05em">🪑 ${payload.mesa}</div>
-      ${payload.nome_cliente_mesa?'<p style="text-align:center">'+payload.nome_cliente_mesa+'</p>':''}
-    </div>` : (payload.tipo_atendimento==='local' && payload.nome_cliente_mesa)?`
-    <div class="section"><p><b>🍽️ No local:</b> ${payload.nome_cliente_mesa}</p></div>`:'';
-  const larguraMm = parseInt(configAtual.print_largura || '80');
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <style>
-    @page{size:${larguraMm}mm auto;margin:0}
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Courier New',monospace;font-size:${larguraMm===58?'11px':'12px'};width:${larguraMm}mm;padding:${larguraMm===58?'2mm':'4mm'};color:#000}
-    h1{font-size:16px;text-align:center;font-weight:900;letter-spacing:.05em;margin-bottom:2px}
-    .sub{text-align:center;font-size:11px;margin-bottom:2px}
-    .divider{border-top:1px dashed #000;margin:6px 0}
-    .section{margin:6px 0}
-    .section-title{font-weight:900;text-transform:uppercase;font-size:11px;letter-spacing:.06em;margin-bottom:4px}
-    table{width:100%;border-collapse:collapse;font-size:11px}
-    th{text-align:left;font-weight:900;border-bottom:1px solid #000;padding-bottom:3px;font-size:10px}
-    td{padding:2px 0;vertical-align:top}
-    .total-row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0}
-    .total-final{display:flex;justify-content:space-between;font-size:15px;font-weight:900;padding:4px 0;border-top:1px solid #000;margin-top:4px}
-    .dav-num{font-size:14px;font-weight:900;text-align:center;margin:4px 0}
-    .footer{text-align:center;font-size:10px;margin-top:8px;color:#555}
-    @media print{body{width:${larguraMm}mm}}
-  </style></head><body>
-  <h1>${empresa}</h1>
-  <div class="sub">DAV — Documento Auxiliar de Venda</div>
-  <div class="sub">${agora}</div>
-  <div class="dav-num">Venda #${venda_id}</div>
-  <div class="divider"></div>
-  ${mesaSection}
-  <div class="section">
-    <div class="section-title">Itens</div>
-    <table><thead><tr><th>Produto</th><th style="text-align:center">Qtd</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead>
-    <tbody>${itensRows}</tbody></table>
-  </div>
-  <div class="divider"></div>
-  <div class="section">
-    <div class="total-row"><span>Subtotal</span><span>R$ ${subtotal.toFixed(2).replace('.',',')}</span></div>
-      ${taxa>0?'<div class="total-row"><span>Taxa de entrega</span><span>R$ '+taxa.toFixed(2).replace('.',',')+' </span></div>':''}
-    <div class="total-final"><span>TOTAL</span><span>R$ ${total.toFixed(2).replace('.',',')}</span></div>
-    <div class="total-row" style="margin-top:4px"><span>Pagamento:</span><span><b>${label[payload.tipo_pagamento]||payload.tipo_pagamento}</b></span></div>
-    <div class="total-row"><span>Atendimento:</span><span>${atendLabel[payload.tipo_atendimento||'balcao']}</span></div>
-  </div>
-  ${entregaSection}
-  <div class="divider"></div>
-  <div class="footer">Obrigado pela preferência!<br><b>${empresa}</b><br>TECH PRIME</div>
-  </body></html>`;
+// ── IMPRESSÃO: LAYOUT EM TEXTO MONOESPAÇADO ──────────────────────────────────
+// Toda a formatação é feita em texto puro, com a largura em COLUNAS calculada a
+// partir da largura do rolo (55mm = 32 col, 80mm = 48 col). Assim a impressão
+// pela janela do Windows e a impressão direta ESC/POS saem IDÊNTICAS, e os dois
+// tamanhos de papel funcionam sem quebrar o alinhamento das colunas.
+
+function _printCols(){
+  var mm = parseInt(configAtual.print_largura || '80');
+  return mm <= 60 ? 32 : 48;   // 55mm ≈ 32 caracteres | 80mm ≈ 48 caracteres
+}
+function _pr(s,n){ s=String(s==null?'':s); return s.length>n ? s.slice(0,n) : s+' '.repeat(n-s.length); }
+function _pl(s,n){ s=String(s==null?'':s); return s.length>n ? s.slice(0,n) : ' '.repeat(n-s.length)+s; }
+function _ctr(s,n){
+  s=String(s==null?'':s);
+  if(s.length>=n) return s.slice(0,n);
+  var esq=Math.floor((n-s.length)/2);
+  return ' '.repeat(esq)+s;
+}
+function _lin(ch,n){ return ch.repeat(n); }
+function _ed(esq,dir,n){            // esquerda ... direita, na mesma linha
+  esq=String(esq||''); dir=String(dir||'');
+  var espaco=n-esq.length-dir.length;
+  if(espaco<1){ return _pr(esq,n-dir.length-1)+' '+dir; }
+  return esq+' '.repeat(espaco)+dir;
+}
+function _din(v){ return (parseFloat(v)||0).toFixed(2).replace('.',','); }
+function _quebra(txt,n){            // quebra texto longo em várias linhas
+  var palavras=String(txt||'').split(/\s+/), linhas=[], atual='';
+  palavras.forEach(function(p){
+    if(!atual) atual=p;
+    else if((atual+' '+p).length<=n) atual+=' '+p;
+    else { linhas.push(atual); atual=p; }
+  });
+  if(atual) linhas.push(atual);
+  return linhas;
+}
+function _nomeProd(i){
+  var p=produtos.find(function(x){return x.id===i.produto_id});
+  return p?p.nome:('Produto #'+i.produto_id);
+}
+function _atendLabelTxt(p){
+  var m={balcao:'Balcão',mesa:'Mesa',local:'No local',entrega:'Entrega'};
+  return m[p||'balcao']||p;
+}
+function _pagLabelTxt(v){
+  var m={dinheiro:'DINHEIRO',cartao_credito:'CARTÃO CRÉDITO',cartao_debito:'CARTÃO DÉBITO',
+         pix:'PIX',crediario:'CREDIÁRIO',misto:'MISTO'};
+  return m[v]||String(v||'').toUpperCase();
 }
 
-function _htmlCozinha(v){
-  const {venda_id, payload} = v;
-  const agora = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  const empresa = configAtual.nome_empresa || 'Maná Food';
-  const atendLabel={balcao:'Balcão',mesa:'Mesa',local:'No local',entrega:'🛵 Entrega'};
-  const itensRows = payload.itens.map(i=>{
-    const nome = (function(){var _p=produtos.find(function(p){return p.id===i.produto_id;});return _p?_p.nome:'Produto #'+i.produto_id;})();
-    const obs = i.observacao ? '<div style="font-size:12px;font-weight:900;padding-left:2px">⚠ '+i.observacao+'</div>' : '';
-    return `<tr><td class="qty">${i.quantidade}x</td><td>${nome}${obs}</td></tr>`;
-  }).join('');
-  const mesaInfo = payload.mesa
-              ? '<div class="mesa-big">🪑 ' + payload.mesa + '</div>' + (payload.nome_cliente_mesa ? '<div class="mesa-sub">' + payload.nome_cliente_mesa + '</div>' : '')
-    : payload.tipo_atendimento==='local' && payload.nome_cliente_mesa
-    ? `<div class="mesa-big">🍽️ ${payload.nome_cliente_mesa}</div>`
-    : `<div class="mesa-big">${atendLabel[payload.tipo_atendimento||'balcao']}</div>`;
-  const entregaInfo = payload.entrega ? `
-    <div class="section">
-      <div class="section-title">📍 ENTREGA</div>
-      <p>${payload.entrega_nome||'—'} ${payload.entrega_telefone?'· '+payload.entrega_telefone:''}</p>
-      <p>${payload.entrega_endereco||'—'}${payload.entrega_bairro?' — '+payload.entrega_bairro:''}</p>
-      ${payload.entrega_obs?'<p><b>OBS: '+payload.entrega_obs+'</b></p>':''}
-    </div>` : '';
-  const larguraMm = parseInt(configAtual.print_largura || '80');
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <style>
-    @page{size:${larguraMm}mm auto;margin:0}
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Courier New',monospace;font-size:${larguraMm===58?'12px':'13px'};width:${larguraMm}mm;padding:${larguraMm===58?'2mm':'4mm'};color:#000}
-    h1{font-size:13px;text-align:center;font-weight:700;margin-bottom:2px}
-    .tag{text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;background:#000;color:#fff;padding:3px 0;margin:4px 0}
-    .num{font-size:36px;font-weight:900;text-align:center;letter-spacing:.02em;line-height:1.1}
-    .mesa-big{font-size:22px;font-weight:900;text-align:center;margin:4px 0}
-    .mesa-sub{text-align:center;font-size:12px;color:#333;margin-bottom:4px}
-    .divider{border-top:2px dashed #000;margin:6px 0}
-    .divider-thin{border-top:1px dashed #000;margin:4px 0}
-    table{width:100%;font-size:14px}
-    td{padding:3px 0;vertical-align:top}
-    .qty{font-size:18px;font-weight:900;width:36px;white-space:nowrap}
-    .section{margin:5px 0;font-size:12px}
-    .section-title{font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
-    .hora{text-align:right;font-size:11px;color:#555}
-    @media print{body{width:${larguraMm}mm}}
-  </style></head><body>
-  <h1>COZINHA — ${empresa}</h1>
-  <div class="hora">${agora}</div>
-  <div class="tag">▶ COMANDA</div>
-  <div class="num">#${venda_id}</div>
-  <div class="divider"></div>
-  ${mesaInfo}
-  <div class="divider-thin"></div>
-  <table><tbody>${itensRows}</tbody></table>
-  ${entregaInfo}
-  <div class="divider"></div>
-  </body></html>`;
+// ── DAV — DOCUMENTO AUXILIAR DE VENDA ────────────────────────────────────────
+function _layoutDAV(v){
+  var C=_printCols(), N=v.payload||{}, L=[];
+  var emp = (typeof empresaAtual!=='undefined' && empresaAtual) ? empresaAtual : {};
+  var nomeEmp = emp.nome_fantasia || emp.razao_social || configAtual.nome_empresa || 'Maná Food';
+  var d=new Date();
+  var data=d.toLocaleDateString('pt-BR'), hora=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+
+  // ── Cabeçalho ──
+  L.push(_lin('=',C));
+  L.push(_ctr(nomeEmp.toUpperCase(),C));
+  // CNPJ é OPCIONAL: só sai se estiver cadastrado E habilitado na configuração
+  if(emp.cnpj && (configAtual.dav_mostrar_cnpj||'1')==='1') L.push(_ctr('CNPJ: '+emp.cnpj,C));
+  if(emp.telefone) L.push(_ctr('Tel: '+emp.telefone,C));
+  L.push(_lin('=',C));
+  L.push('');
+  L.push(_ctr('DAV',C));
+  L.push(_ctr('DOCUMENTO AUXILIAR DE VENDA',C));
+  L.push('');
+
+  // ── Dados da venda ──
+  L.push('DAV Nº: '+String(v.venda_id||'').padStart(6,'0'));
+  if(C>=48) L.push(_pr('Data: '+data,21)+'Hora: '+hora);
+  else { L.push('Data: '+data); L.push('Hora: '+hora); }
+  var atendente = (typeof usuarioLogado!=='undefined' && usuarioLogado) ? usuarioLogado.nome : '';
+  if(atendente) L.push('Atendente: '+atendente.toUpperCase());
+  if(N.tipo_atendimento==='mesa' && N.mesa) L.push('Mesa: '+N.mesa);
+  else if(N.tipo_atendimento) L.push('Atendimento: '+_atendLabelTxt(N.tipo_atendimento));
+  if(N.nome_cliente_mesa)   L.push('Cliente: '+N.nome_cliente_mesa);
+  if(N.nome_cliente_balcao) L.push('Cliente: '+N.nome_cliente_balcao);
+  L.push('');
+
+  // ── Itens ──
+  L.push(_lin('-',C));
+  if(C>=48){
+    L.push(_pr('ITEM',6)+_pr('DESCRIÇÃO',22)+_pl('QTD',5)+_pl('VALOR',10));
+  } else {
+    L.push(_pr('ITEM DESCRIÇÃO',C));
+  }
+  L.push(_lin('-',C));
+
+  var subtotal=0, totalItens=0;
+  (N.itens||[]).forEach(function(i,idx){
+    var num=String(idx+1).padStart(3,'0');
+    var nome=_nomeProd(i).toUpperCase();
+    var qtd=i.quantidade||1;
+    var valor=(i.preco_unitario||0)*qtd;
+    subtotal+=valor; totalItens+=qtd;
+    if(C>=48){
+      L.push(_pr(num,6)+_pr(nome,22)+_pl(qtd,5)+_pl(_din(valor),10));
+    } else {
+      L.push(num+' '+_pr(nome,C-4));
+      L.push(_ed('    '+qtd+' x '+_din(i.preco_unitario||0), _din(valor), C));
+    }
+    // adicionais do item
+    (i.adicionais||[]).forEach(function(a){
+      var lbl='+ '+a.nome, temPreco=parseFloat(a.preco||0)>0;
+      if(C>=48) L.push(_pr('',6)+_pr(lbl,22)+_pl(temPreco?qtd:'',5)+_pl(temPreco?_din(a.preco*qtd):'',10));
+      else      L.push(temPreco ? _ed('    '+lbl, _din(a.preco*qtd), C) : '    '+lbl);
+      if(temPreco) subtotal+=a.preco*qtd;
+    });
+    // observação do item
+    if(i.observacao){
+      _quebra('OBS: '+i.observacao, C-6).forEach(function(l){ L.push('      '+l); });
+    }
+  });
+  L.push(_lin('-',C));
+  L.push('');
+
+  // ── Totais ──
+  var taxa=N.entrega_taxa||0;
+  var desconto=(N.desconto||0)+(N.cupom_desconto||0);
+  var gorjeta=N.gorjeta||0;
+  L.push(_ed('', 'SUBTOTAL: R$ '+_pl(_din(subtotal),9), C));
+  if(taxa>0)     L.push(_ed('', 'TX ENTREGA: R$ '+_pl(_din(taxa),9), C));
+  if(gorjeta>0)  L.push(_ed('', 'GORJETA: R$ '+_pl(_din(gorjeta),9), C));
+  L.push(_ed('', 'DESCONTO: R$ '+_pl(_din(desconto),9), C));
+  L.push(_ed('', 'TOTAL:    R$ '+_pl(_din(v.total||0),9), C));
+  L.push('');
+
+  // ── Pagamento ──
+  L.push('Pagamento: '+_pagLabelTxt(N.tipo_pagamento));
+  if(N.tipo_pagamento==='misto' && N.pagamentos_mix){
+    N.pagamentos_mix.forEach(function(p){
+      L.push('  - '+_ed(_pagLabelTxt(p.tipo), 'R$ '+_din(p.valor), C-2));
+    });
+  }
+  if(N.cartao_bandeira) L.push('Bandeira: '+N.cartao_bandeira);
+  if(N.cartao_nsu)      L.push('NSU: '+N.cartao_nsu);
+  var receb=parseFloat(N.valor_recebido||0);
+  if(N.tipo_pagamento==='dinheiro' && receb>0){
+    L.push('Valor recebido: R$ '+_din(receb));
+    L.push('Troco: R$ '+_din(Math.max(0,receb-(v.total||0))));
+  }
+  if(N.tipo_pagamento==='crediario' && N.vencimento){
+    L.push('Vencimento: '+String(N.vencimento).split('-').reverse().join('/'));
+  }
+
+  // ── Entrega ──
+  if(N.entrega){
+    L.push('');
+    L.push(_lin('-',C));
+    L.push(_ctr('ENTREGA',C));
+    L.push(_lin('-',C));
+    if(N.entrega_nome)     L.push('Cliente: '+N.entrega_nome);
+    if(N.entrega_telefone) L.push('Tel: '+N.entrega_telefone);
+    _quebra('End: '+(N.entrega_endereco||'')+(N.entrega_bairro?' - '+N.entrega_bairro:''),C).forEach(function(l){L.push(l)});
+    if(N.entrega_referencia) _quebra('Ref: '+N.entrega_referencia,C).forEach(function(l){L.push(l)});
+    if(N.entrega_obs)        _quebra('Obs: '+N.entrega_obs,C).forEach(function(l){L.push(l)});
+  }
+
+  // ── Rodapé ──
+  L.push('');
+  L.push(_lin('-',C));
+  L.push(_ctr('OBRIGADO PELA',C));
+  L.push(_ctr('PREFERÊNCIA!',C));
+  L.push(_lin('-',C));
+  L.push('');
+  L.push(_ctr('ESTE DOCUMENTO NÃO É FISCAL',C));
+  L.push(_lin('=',C));
+  return L.map(function(l){return l.replace(/\s+$/,'')}).join('\n');
 }
+
+// ── COMANDA DA COZINHA — modelo "detalhado" (padrão) ─────────────────────────
+function _layoutCozinhaDetalhado(v){
+  var C=_printCols(), N=v.payload||{}, L=[];
+  var d=new Date();
+  var data=d.toLocaleDateString('pt-BR'), hora=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  var atendente=(typeof usuarioLogado!=='undefined' && usuarioLogado)?usuarioLogado.nome:'';
+
+  L.push(_lin('=',C));
+  L.push(_ctr('PEDIDO - COZINHA',C));
+  L.push(_lin('=',C));
+  L.push('');
+  L.push('PEDIDO Nº: '+String(v.venda_id||'').padStart(6,'0'));
+  L.push('DATA: '+data);
+  L.push('HORA: '+hora);
+  L.push('');
+  if(N.tipo_atendimento==='mesa' && N.mesa) L.push('MESA: '+N.mesa);
+  else L.push('ATENDIMENTO: '+_atendLabelTxt(N.tipo_atendimento).toUpperCase());
+  if(N.nome_cliente_mesa)   L.push('CLIENTE: '+N.nome_cliente_mesa.toUpperCase());
+  if(N.nome_cliente_balcao) L.push('CLIENTE: '+N.nome_cliente_balcao.toUpperCase());
+  if(atendente) L.push('ATENDENTE: '+atendente.toUpperCase());
+  L.push(_lin('-',C));
+  L.push('');
+  L.push(_ctr('*** PREPARAR PEDIDO ***',C));
+  L.push('');
+
+  var totalItens=0;
+  (N.itens||[]).forEach(function(i,idx){
+    var qtd=i.quantidade||1;
+    totalItens+=qtd;
+    L.push(qtd+'x '+_nomeProd(i).toUpperCase());
+    (i.adicionais||[]).forEach(function(a){
+      L.push('   [ ] '+a.nome.toUpperCase());
+    });
+    if(i.observacao){
+      L.push('');
+      L.push('   OBS:');
+      _quebra(i.observacao.toUpperCase(), C-3).forEach(function(l){ L.push('   '+l); });
+    }
+    L.push('');
+    if(idx < (N.itens.length-1)) { L.push(_lin('-',C)); L.push(''); }
+  });
+
+  L.push(_lin('-',C));
+  L.push('');
+  L.push(_ctr('TOTAL DE ITENS: '+totalItens,C));
+  L.push('');
+  if(N.entrega){
+    L.push(_lin('-',C));
+    L.push(_ctr('*** ENTREGA ***',C));
+    if(N.entrega_nome) L.push('CLIENTE: '+N.entrega_nome.toUpperCase());
+    _quebra('END: '+(N.entrega_endereco||'')+(N.entrega_bairro?' - '+N.entrega_bairro:''),C).forEach(function(l){L.push(l)});
+    if(N.entrega_obs) _quebra('OBS: '+N.entrega_obs.toUpperCase(),C).forEach(function(l){L.push(l)});
+    L.push('');
+  }
+  L.push(_lin('=',C));
+  L.push(_ctr('*** PEDIDO EM PRODUÇÃO ***',C));
+  L.push(_lin('=',C));
+  return L.map(function(l){return l.replace(/\s+$/,'')}).join('\n');
+}
+
+// ── COMANDA DA COZINHA — modelo "destacado" (blocos por item) ────────────────
+function _layoutCozinhaDestacado(v){
+  var C=_printCols(), N=v.payload||{}, L=[];
+  var d=new Date();
+  var data=d.toLocaleDateString('pt-BR'), hora=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+
+  L.push(_lin('=',C));
+  L.push(_ctr('PEDIDO #'+String(v.venda_id||'').padStart(6,'0'),C));
+  if(N.tipo_atendimento==='mesa' && N.mesa) L.push(_ctr(String(N.mesa).toUpperCase(),C));
+  else L.push(_ctr(_atendLabelTxt(N.tipo_atendimento).toUpperCase(),C));
+  L.push(_lin('=',C));
+  L.push('');
+  L.push(hora+' - '+data);
+  L.push('');
+
+  (N.itens||[]).forEach(function(i){
+    L.push(_lin('-',C));
+    L.push('QTD: '+(i.quantidade||1));
+    L.push(_nomeProd(i).toUpperCase());
+    L.push(_lin('-',C));
+    (i.adicionais||[]).forEach(function(a){ L.push('  - '+a.nome.toUpperCase()); });
+    if(i.observacao){
+      _quebra(i.observacao.toUpperCase(), C-4).forEach(function(l){ L.push('  - '+l); });
+    }
+    L.push('');
+  });
+
+  if(N.entrega){
+    L.push(_lin('-',C));
+    L.push(_ctr('*** ENTREGA ***',C));
+    if(N.entrega_nome) L.push('CLIENTE: '+N.entrega_nome.toUpperCase());
+    _quebra('END: '+(N.entrega_endereco||'')+(N.entrega_bairro?' - '+N.entrega_bairro:''),C).forEach(function(l){L.push(l)});
+    L.push('');
+  }
+  L.push(_lin('=',C));
+  return L.map(function(l){return l.replace(/\s+$/,'')}).join('\n');
+}
+
+function _layoutCozinha(v){
+  return (configAtual.cozinha_modelo||'detalhado')==='destacado'
+    ? _layoutCozinhaDestacado(v)
+    : _layoutCozinhaDetalhado(v);
+}
+
+// ── Embrulha o texto num HTML pronto pra impressão (janela do Windows) ───────
+function _htmlCupom(texto){
+  var mm=parseInt(configAtual.print_largura||'80');
+  var fonte = mm<=60 ? '9.5px' : '11px';
+  var esc = String(texto).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'
+    + '@page{size:'+mm+'mm auto;margin:0}'
+    + '*{margin:0;padding:0;box-sizing:border-box}'
+    + 'body{width:'+mm+'mm;padding:'+(mm<=60?'1.5mm':'3mm')+'}'
+    + 'pre{font-family:"Courier New",Consolas,monospace;font-size:'+fonte+';line-height:1.25;'
+    + 'white-space:pre;color:#000;font-weight:600;letter-spacing:0}'
+    + '@media print{body{width:'+mm+'mm}}'
+    + '</style></head><body><pre>'+esc+'</pre></body></html>';
+}
+
+function _htmlDAV(v){     return _htmlCupom(_layoutDAV(v)); }
+function _htmlCozinha(v){ return _htmlCupom(_layoutCozinha(v)); }
 
 function _imprimir(html, tipo){
   var metodo=configAtual.print_metodo||'windows';
@@ -7144,8 +7322,13 @@ function copiarListaReposicao(){
   }else _copiarFallback(txt);
 }
 // ── EMPRESA ──────────────────────────────────────────────────────────────────
+var empresaAtual = {};
+async function loadEmpresaDados(){            // carrega só os dados (pro DAV), sem depender da tela
+  var d=await api('/empresa'); if(d) empresaAtual=d;
+}
 async function loadEmpresa(){
   var d=await api('/empresa');if(!d)return;
+  empresaAtual=d;
   document.getElementById('emp-razao').value=d.razao_social||'';
   document.getElementById('emp-fantasia').value=d.nome_fantasia||'';
   document.getElementById('emp-cnpj').value=d.cnpj||'';
@@ -7533,64 +7716,14 @@ function _togglePrintConfig(){
 }
 
 function _textoDAV(){
-  var v=_ultimaVenda;if(!v)return'';
-  var c=configAtual;
-  var txt='';
-  txt+='================================\n';
-  txt+='       '+(c.nome_empresa||'Mana Food')+'\n';
-  txt+='================================\n';
-  txt+='Data: '+_localDate().split('-').reverse().join('/')+' '+new Date().toLocaleTimeString('pt-BR')+'\n';
-  txt+='Venda #'+v.venda_id+'\n';
-  txt+='--------------------------------\n';
-  txt+='PRODUTO          QTD  UNIT  TOTAL\n';
-  txt+='--------------------------------\n';
-  if(v.payload&&v.payload.itens){v.payload.itens.forEach(function(i){
-    var nomeProd=(function(){var _p=produtos.find(function(p){return p.id===i.produto_id});return _p?_p.nome:'Produto #'+i.produto_id})();
-    var nome=nomeProd.substring(0,16).padEnd(16);
-    var qtd=String(i.quantidade||1).padStart(3);
-    var unit=String(parseFloat(i.preco_unitario||0).toFixed(2)).padStart(6);
-    var sub=String((parseFloat(i.preco_unitario||0)*(i.quantidade||1)).toFixed(2)).padStart(7);
-    txt+=nome+qtd+unit+sub+'\n';
-    if(i.observacao)txt+='  -> '+i.observacao+'\n';
-  })}
-  txt+='--------------------------------\n';
-  txt+='TOTAL: R$ '+(parseFloat(v.total||0)).toFixed(2)+'\n';
-  txt+='Pagamento: '+((v.payload&&v.payload.tipo_pagamento)||'dinheiro')+'\n';
-  if(v.payload&&v.payload.tipo_atendimento&&v.payload.tipo_atendimento!=='balcao')txt+='Atendimento: '+v.payload.tipo_atendimento+'\n';
-  txt+='--------------------------------\n';
-  txt+='    Obrigado pela preferencia!\n';
-  txt+='================================\n';
-  return txt;
+  if(!_ultimaVenda) return '';
+  return _layoutDAV(_ultimaVenda)+'\n\n\n';
 }
 
 function _textoCozinha(){
-  var v=_ultimaVenda;if(!v)return'';
-  var c=configAtual;
-  var txt='';
-  txt+='================================\n';
-  txt+='        *** COZINHA ***\n';
-  txt+='   '+(c.nome_empresa||'Mana Food')+'\n';
-  txt+='================================\n';
-  txt+=new Date().toLocaleTimeString('pt-BR')+'\n';
-  txt+='PEDIDO #'+v.venda_id+'\n';
-  txt+='================================\n\n';
-  if(v.payload&&v.payload.itens){v.payload.itens.forEach(function(i){
-    var nomeProd=(function(){var _p=produtos.find(function(p){return p.id===i.produto_id});return _p?_p.nome:'Produto #'+i.produto_id})();
-    txt+='  '+(i.quantidade||1)+'x '+nomeProd+'\n';
-    if(i.observacao)txt+='     OBS: '+i.observacao+'\n';
-  })}
-  txt+='\n';
-  if(v.payload&&v.payload.tipo_atendimento==='mesa')txt+='MESA: '+(v.payload.mesa||'')+'\n';
-  if(v.payload&&v.payload.tipo_atendimento==='entrega'){
-    txt+='ENTREGA: '+(v.payload.entrega_nome||'')+'\n';
-    txt+='END: '+(v.payload.entrega_endereco||'')+'\n';
-    if(v.payload.entrega_bairro)txt+='BAIRRO: '+v.payload.entrega_bairro+'\n';
-    if(v.payload.entrega_telefone)txt+='TEL: '+v.payload.entrega_telefone+'\n';
-  }
-  txt+='================================\n';
-  return txt;
+  if(!_ultimaVenda) return '';
+  return _layoutCozinha(_ultimaVenda)+'\n\n\n';
 }
-
 function onLogoSelect(e){
   var file=e.target.files[0];if(!file)return;
   if(file.size>512*1024){toast('Logo muito grande! Máx 500KB','err');return}
@@ -9847,7 +9980,7 @@ async function fazerLogin(){
     _updateMobUser();
     _iniciarAutoRefresh();
     _restoreSidebarState();
-    loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal(); loadConvenios();
+    loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal(); loadConvenios(); loadEmpresaDados();
     checkForUpdate();
   } else {
     err.textContent = d.erro||'Erro ao fazer login';
@@ -10079,6 +10212,8 @@ async function loadConfig(){
   document.getElementById('cfg-impressao-coz').checked = (data.impressao_coz||'1') === '1';
   var _pm=document.getElementById('cfg-print-metodo');if(_pm){_pm.value=data.print_metodo||'windows';_togglePrintConfig()}
   var _pl=document.getElementById('cfg-print-largura');if(_pl){_pl.value=data.print_largura||'80'}
+  var _cm=document.getElementById('cfg-cozinha-modelo');if(_cm){_cm.value=data.cozinha_modelo||'detalhado'}
+  var _dc=document.getElementById('cfg-dav-cnpj');if(_dc){_dc.checked=(data.dav_mostrar_cnpj||'1')==='1'}
   var _pbi=document.getElementById('cfg-print-balcao-ip');if(_pbi)_pbi.value=data.print_balcao_ip||'';
   var _pci=document.getElementById('cfg-print-cozinha-ip');if(_pci)_pci.value=data.print_cozinha_ip||'';
   var _pbn=document.getElementById('cfg-print-balcao-nome');if(_pbn)_pbn.value=data.print_balcao_nome||'';
@@ -10208,6 +10343,8 @@ async function salvarConfig(){
     impressao_coz:  document.getElementById('cfg-impressao-coz').checked ? '1' : '0',
     print_metodo:       (document.getElementById('cfg-print-metodo')||{}).value||'windows',
     print_largura:      (document.getElementById('cfg-print-largura')||{}).value||'80',
+    cozinha_modelo:     (document.getElementById('cfg-cozinha-modelo')||{}).value||'detalhado',
+    dav_mostrar_cnpj:   (document.getElementById('cfg-dav-cnpj')||{}).checked?'1':'0',
     print_balcao_ip:    (document.getElementById('cfg-print-balcao-ip')||{}).value||'',
     print_cozinha_ip:   (document.getElementById('cfg-print-cozinha-ip')||{}).value||'',
     print_balcao_nome:  (document.getElementById('cfg-print-balcao-nome')||{}).value||'',
@@ -10624,7 +10761,7 @@ document.addEventListener('DOMContentLoaded', async()=>{
       _updateMobUser();
       _iniciarAutoRefresh();
       updateSyncBadge();
-      loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal(); loadConvenios();
+      loadProdutos(); loadAdicionais(); loadClientesSelect(); loadCategorias(); loadConfig(); loadCaixa(); loadStatusCupomFiscal(); loadConvenios(); loadEmpresaDados();
       checkForUpdate();
       if(_pendingSyncCount>0) syncQueue();
       return;
