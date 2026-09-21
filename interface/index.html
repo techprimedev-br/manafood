@@ -3191,7 +3191,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
               <label style="font-size:12px;font-weight:700;color:var(--text2);display:block;margin-bottom:8px">Largura do rolo (impressora térmica)</label>
               <select id="cfg-print-largura" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px">
                 <option value="80">80mm (padrão) — 48 colunas</option>
-                <option value="55">55mm (compacta) — 32 colunas</option>
+                <option value="58">58mm (compacta) — 32 colunas</option>
               </select>
             </div>
             <div style="margin-top:12px">
@@ -6233,13 +6233,13 @@ function abrirModalImpressao(venda_id, payload, total){
 
 // ── IMPRESSÃO: LAYOUT EM TEXTO MONOESPAÇADO ──────────────────────────────────
 // Toda a formatação é feita em texto puro, com a largura em COLUNAS calculada a
-// partir da largura do rolo (55mm = 32 col, 80mm = 48 col). Assim a impressão
+// partir da largura do rolo (58mm = 32 col, 80mm = 48 col). Assim a impressão
 // pela janela do Windows e a impressão direta ESC/POS saem IDÊNTICAS, e os dois
 // tamanhos de papel funcionam sem quebrar o alinhamento das colunas.
 
 function _printCols(){
   var mm = parseInt(configAtual.print_largura || '80');
-  return mm <= 60 ? 32 : 48;   // 55mm ≈ 32 caracteres | 80mm ≈ 48 caracteres
+  return mm <= 60 ? 32 : 48;   // 58mm ≈ 32 caracteres | 80mm ≈ 48 caracteres
 }
 function _pr(s,n){ s=String(s==null?'':s); return s.length>n ? s.slice(0,n) : s+' '.repeat(n-s.length); }
 function _pl(s,n){ s=String(s==null?'':s); return s.length>n ? s.slice(0,n) : ' '.repeat(n-s.length)+s; }
@@ -6257,15 +6257,36 @@ function _ed(esq,dir,n){            // esquerda ... direita, na mesma linha
   return esq+' '.repeat(espaco)+dir;
 }
 function _din(v){ return (parseFloat(v)||0).toFixed(2).replace('.',','); }
+function _qtd(v){ var n=parseFloat(v)||0; return (n%1===0? String(n) : n.toFixed(3).replace(/0+$/,'').replace(/\.$/,'')).replace('.',','); }
 function _quebra(txt,n){            // quebra texto longo em várias linhas
+  if(n<1) n=1;
   var palavras=String(txt||'').split(/\s+/), linhas=[], atual='';
   palavras.forEach(function(p){
+    while(p.length>n){                // palavra sozinha maior que o papel: corta na força
+      if(atual){ linhas.push(atual); atual=''; }
+      linhas.push(p.slice(0,n)); p=p.slice(n);
+    }
+    if(!p) return;
     if(!atual) atual=p;
     else if((atual+' '+p).length<=n) atual+=' '+p;
     else { linhas.push(atual); atual=p; }
   });
   if(atual) linhas.push(atual);
   return linhas;
+}
+function _fechar(L,C){          // aparar + garantir que NADA passe da largura do papel
+  var out=[];
+  L.forEach(function(linha){
+    linha=String(linha==null?'':linha).replace(/\s+$/,'');
+    if(linha.length<=C){ out.push(linha); return; }
+    var ind=(linha.match(/^\s*/)||[''])[0];
+    if(ind.length>=C-4) ind='';
+    var resto=linha.slice(ind.length);
+    _quebra(resto, C-ind.length).forEach(function(l,idx){
+      out.push(ind+l);                       // continuacao mantem a mesma indentacao
+    });
+  });
+  return out.join('\n');
 }
 function _nomeProd(i){
   var p=produtos.find(function(x){return x.id===i.produto_id});
@@ -6330,15 +6351,15 @@ function _layoutDAV(v){
     var valor=(i.preco_unitario||0)*qtd;
     subtotal+=valor; totalItens+=qtd;
     if(C>=48){
-      L.push(_pr(num,6)+_pr(nome,22)+_pl(qtd,5)+_pl(_din(valor),10));
+      L.push(_pr(num,6)+_pr(nome,22)+_pl(_qtd(qtd),5)+_pl(_din(valor),10));
     } else {
       L.push(num+' '+_pr(nome,C-4));
-      L.push(_ed('    '+qtd+' x '+_din(i.preco_unitario||0), _din(valor), C));
+      L.push(_ed('    '+_qtd(qtd)+' x '+_din(i.preco_unitario||0), _din(valor), C));
     }
     // adicionais do item
     (i.adicionais||[]).forEach(function(a){
       var lbl='+ '+a.nome, temPreco=parseFloat(a.preco||0)>0;
-      if(C>=48) L.push(_pr('',6)+_pr(lbl,22)+_pl(temPreco?qtd:'',5)+_pl(temPreco?_din(a.preco*qtd):'',10));
+      if(C>=48) L.push(_pr('',6)+_pr(lbl,22)+_pl(temPreco?_qtd(qtd):'',5)+_pl(temPreco?_din(a.preco*qtd):'',10));
       else      L.push(temPreco ? _ed('    '+lbl, _din(a.preco*qtd), C) : '    '+lbl);
       if(temPreco) subtotal+=a.preco*qtd;
     });
@@ -6362,10 +6383,10 @@ function _layoutDAV(v){
   L.push('');
 
   // ── Pagamento ──
-  L.push('Pagamento: '+_pagLabelTxt(N.tipo_pagamento));
+  if(N.tipo_pagamento) L.push('Pagamento: '+_pagLabelTxt(N.tipo_pagamento));
   if(N.tipo_pagamento==='misto' && N.pagamentos_mix){
     N.pagamentos_mix.forEach(function(p){
-      L.push('  - '+_ed(_pagLabelTxt(p.tipo), 'R$ '+_din(p.valor), C-2));
+      L.push('  - '+_ed(_pagLabelTxt(p.tipo), 'R$ '+_din(p.valor), C-4));
     });
   }
   if(N.cartao_bandeira) L.push('Bandeira: '+N.cartao_bandeira);
@@ -6401,7 +6422,7 @@ function _layoutDAV(v){
   L.push('');
   L.push(_ctr('ESTE DOCUMENTO NÃO É FISCAL',C));
   L.push(_lin('=',C));
-  return L.map(function(l){return l.replace(/\s+$/,'')}).join('\n');
+  return _fechar(L,C);
 }
 
 // ── COMANDA DA COZINHA — modelo "detalhado" (padrão) ─────────────────────────
@@ -6433,7 +6454,9 @@ function _layoutCozinhaDetalhado(v){
   (N.itens||[]).forEach(function(i,idx){
     var qtd=i.quantidade||1;
     totalItens+=qtd;
-    L.push(qtd+'x '+_nomeProd(i).toUpperCase());
+    var linhasNome=_quebra(_nomeProd(i).toUpperCase(), C-4);
+    L.push(_qtd(qtd)+'x '+linhasNome[0]);
+    linhasNome.slice(1).forEach(function(l){ L.push('   '+l); });
     (i.adicionais||[]).forEach(function(a){
       L.push('   [ ] '+a.nome.toUpperCase());
     });
@@ -6461,7 +6484,7 @@ function _layoutCozinhaDetalhado(v){
   L.push(_lin('=',C));
   L.push(_ctr('*** PEDIDO EM PRODUÇÃO ***',C));
   L.push(_lin('=',C));
-  return L.map(function(l){return l.replace(/\s+$/,'')}).join('\n');
+  return _fechar(L,C);
 }
 
 // ── COMANDA DA COZINHA — modelo "destacado" (blocos por item) ────────────────
@@ -6481,8 +6504,8 @@ function _layoutCozinhaDestacado(v){
 
   (N.itens||[]).forEach(function(i){
     L.push(_lin('-',C));
-    L.push('QTD: '+(i.quantidade||1));
-    L.push(_nomeProd(i).toUpperCase());
+    L.push('QTD: '+_qtd(i.quantidade||1));
+    _quebra(_nomeProd(i).toUpperCase(), C).forEach(function(l){ L.push(l); });
     L.push(_lin('-',C));
     (i.adicionais||[]).forEach(function(a){ L.push('  - '+a.nome.toUpperCase()); });
     if(i.observacao){
@@ -6499,7 +6522,7 @@ function _layoutCozinhaDestacado(v){
     L.push('');
   }
   L.push(_lin('=',C));
-  return L.map(function(l){return l.replace(/\s+$/,'')}).join('\n');
+  return _fechar(L,C);
 }
 
 function _layoutCozinha(v){

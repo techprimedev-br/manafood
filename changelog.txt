@@ -1,4 +1,7 @@
-﻿## v4.9.1
+﻿## v4.9.2
+- ALTERAÇÃO DE 55mm PARA 58mm
+
+## v4.9.1
 - ALTERAÇÃO NOS FORMALUARIOS DE IMPRESSÃO.
 
 ## v4.9.0
