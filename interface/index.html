@@ -6316,23 +6316,18 @@ function _layoutDAV(v){
   // CNPJ é OPCIONAL: só sai se estiver cadastrado E habilitado na configuração
   if(emp.cnpj && (configAtual.dav_mostrar_cnpj||'1')==='1') L.push(_ctr('CNPJ: '+emp.cnpj,C));
   if(emp.telefone) L.push(_ctr('Tel: '+emp.telefone,C));
+  L.push(_ctr('DAV - Documento Aux. de Venda',C));
   L.push(_lin('=',C));
-  L.push('');
-  L.push(_ctr('DAV',C));
-  L.push(_ctr('DOCUMENTO AUXILIAR DE VENDA',C));
-  L.push('');
 
   // ── Dados da venda ──
-  L.push('DAV Nº: '+String(v.venda_id||'').padStart(6,'0'));
-  if(C>=48) L.push(_pr('Data: '+data,21)+'Hora: '+hora);
-  else { L.push('Data: '+data); L.push('Hora: '+hora); }
+  if(C>=48) L.push(_pr('DAV Nº: '+String(v.venda_id||'').padStart(6,'0'),24)+'Data: '+data+' '+hora);
+  else { L.push('DAV Nº: '+String(v.venda_id||'').padStart(6,'0')); L.push('Data: '+data+'  Hora: '+hora); }
   var atendente = (typeof usuarioLogado!=='undefined' && usuarioLogado) ? usuarioLogado.nome : '';
   if(atendente) L.push('Atendente: '+atendente.toUpperCase());
   if(N.tipo_atendimento==='mesa' && N.mesa) L.push('Mesa: '+N.mesa);
   else if(N.tipo_atendimento) L.push('Atendimento: '+_atendLabelTxt(N.tipo_atendimento));
   if(N.nome_cliente_mesa)   L.push('Cliente: '+N.nome_cliente_mesa);
   if(N.nome_cliente_balcao) L.push('Cliente: '+N.nome_cliente_balcao);
-  L.push('');
 
   // ── Itens ──
   L.push(_lin('-',C));
@@ -6369,18 +6364,16 @@ function _layoutDAV(v){
     }
   });
   L.push(_lin('-',C));
-  L.push('');
 
   // ── Totais ──
   var taxa=N.entrega_taxa||0;
   var desconto=(N.desconto||0)+(N.cupom_desconto||0);
   var gorjeta=N.gorjeta||0;
-  L.push(_ed('', 'SUBTOTAL: R$ '+_pl(_din(subtotal),9), C));
+  if(taxa>0 || gorjeta>0 || desconto>0) L.push(_ed('', 'SUBTOTAL: R$ '+_pl(_din(subtotal),9), C));
   if(taxa>0)     L.push(_ed('', 'TX ENTREGA: R$ '+_pl(_din(taxa),9), C));
   if(gorjeta>0)  L.push(_ed('', 'GORJETA: R$ '+_pl(_din(gorjeta),9), C));
-  L.push(_ed('', 'DESCONTO: R$ '+_pl(_din(desconto),9), C));
+  if(desconto>0) L.push(_ed('', 'DESCONTO: R$ '+_pl(_din(desconto),9), C));
   L.push(_ed('', 'TOTAL:    R$ '+_pl(_din(v.total||0),9), C));
-  L.push('');
 
   // ── Pagamento ──
   if(N.tipo_pagamento) L.push('Pagamento: '+_pagLabelTxt(N.tipo_pagamento));
@@ -6393,8 +6386,7 @@ function _layoutDAV(v){
   if(N.cartao_nsu)      L.push('NSU: '+N.cartao_nsu);
   var receb=parseFloat(N.valor_recebido||0);
   if(N.tipo_pagamento==='dinheiro' && receb>0){
-    L.push('Valor recebido: R$ '+_din(receb));
-    L.push('Troco: R$ '+_din(Math.max(0,receb-(v.total||0))));
+    L.push('Recebido: R$ '+_din(receb)+'  Troco: R$ '+_din(Math.max(0,receb-(v.total||0))));
   }
   if(N.tipo_pagamento==='crediario' && N.vencimento){
     L.push('Vencimento: '+String(N.vencimento).split('-').reverse().join('/'));
@@ -6402,10 +6394,8 @@ function _layoutDAV(v){
 
   // ── Entrega ──
   if(N.entrega){
-    L.push('');
     L.push(_lin('-',C));
     L.push(_ctr('ENTREGA',C));
-    L.push(_lin('-',C));
     if(N.entrega_nome)     L.push('Cliente: '+N.entrega_nome);
     if(N.entrega_telefone) L.push('Tel: '+N.entrega_telefone);
     _quebra('End: '+(N.entrega_endereco||'')+(N.entrega_bairro?' - '+N.entrega_bairro:''),C).forEach(function(l){L.push(l)});
@@ -6414,12 +6404,8 @@ function _layoutDAV(v){
   }
 
   // ── Rodapé ──
-  L.push('');
   L.push(_lin('-',C));
-  L.push(_ctr('OBRIGADO PELA',C));
-  L.push(_ctr('PREFERÊNCIA!',C));
-  L.push(_lin('-',C));
-  L.push('');
+  L.push(_ctr('Obrigado pela preferência!',C));
   L.push(_ctr('ESTE DOCUMENTO NÃO É FISCAL',C));
   L.push(_lin('=',C));
   return _fechar(L,C);
@@ -6435,18 +6421,13 @@ function _layoutCozinhaDetalhado(v){
   L.push(_lin('=',C));
   L.push(_ctr('PEDIDO - COZINHA',C));
   L.push(_lin('=',C));
-  L.push('');
-  L.push('PEDIDO Nº: '+String(v.venda_id||'').padStart(6,'0'));
-  L.push('DATA: '+data);
-  L.push('HORA: '+hora);
-  L.push('');
+  L.push('PEDIDO Nº: '+String(v.venda_id||'').padStart(6,'0')+'   '+hora);
   if(N.tipo_atendimento==='mesa' && N.mesa) L.push('MESA: '+N.mesa);
   else L.push('ATENDIMENTO: '+_atendLabelTxt(N.tipo_atendimento).toUpperCase());
   if(N.nome_cliente_mesa)   L.push('CLIENTE: '+N.nome_cliente_mesa.toUpperCase());
   if(N.nome_cliente_balcao) L.push('CLIENTE: '+N.nome_cliente_balcao.toUpperCase());
   if(atendente) L.push('ATENDENTE: '+atendente.toUpperCase());
   L.push(_lin('-',C));
-  L.push('');
   L.push(_ctr('*** PREPARAR PEDIDO ***',C));
   L.push('');
 
@@ -6461,25 +6442,20 @@ function _layoutCozinhaDetalhado(v){
       L.push('   [ ] '+a.nome.toUpperCase());
     });
     if(i.observacao){
-      L.push('');
       L.push('   OBS:');
       _quebra(i.observacao.toUpperCase(), C-3).forEach(function(l){ L.push('   '+l); });
     }
-    L.push('');
-    if(idx < (N.itens.length-1)) { L.push(_lin('-',C)); L.push(''); }
+    if(idx < (N.itens.length-1)) L.push(_lin('-',C));
   });
 
   L.push(_lin('-',C));
-  L.push('');
   L.push(_ctr('TOTAL DE ITENS: '+totalItens,C));
-  L.push('');
   if(N.entrega){
     L.push(_lin('-',C));
     L.push(_ctr('*** ENTREGA ***',C));
     if(N.entrega_nome) L.push('CLIENTE: '+N.entrega_nome.toUpperCase());
     _quebra('END: '+(N.entrega_endereco||'')+(N.entrega_bairro?' - '+N.entrega_bairro:''),C).forEach(function(l){L.push(l)});
     if(N.entrega_obs) _quebra('OBS: '+N.entrega_obs.toUpperCase(),C).forEach(function(l){L.push(l)});
-    L.push('');
   }
   L.push(_lin('=',C));
   L.push(_ctr('*** PEDIDO EM PRODUÇÃO ***',C));
@@ -6498,9 +6474,7 @@ function _layoutCozinhaDestacado(v){
   if(N.tipo_atendimento==='mesa' && N.mesa) L.push(_ctr(String(N.mesa).toUpperCase(),C));
   else L.push(_ctr(_atendLabelTxt(N.tipo_atendimento).toUpperCase(),C));
   L.push(_lin('=',C));
-  L.push('');
   L.push(hora+' - '+data);
-  L.push('');
 
   (N.itens||[]).forEach(function(i){
     L.push(_lin('-',C));
@@ -6511,7 +6485,6 @@ function _layoutCozinhaDestacado(v){
     if(i.observacao){
       _quebra(i.observacao.toUpperCase(), C-4).forEach(function(l){ L.push('  - '+l); });
     }
-    L.push('');
   });
 
   if(N.entrega){
@@ -6519,7 +6492,6 @@ function _layoutCozinhaDestacado(v){
     L.push(_ctr('*** ENTREGA ***',C));
     if(N.entrega_nome) L.push('CLIENTE: '+N.entrega_nome.toUpperCase());
     _quebra('END: '+(N.entrega_endereco||'')+(N.entrega_bairro?' - '+N.entrega_bairro:''),C).forEach(function(l){L.push(l)});
-    L.push('');
   }
   L.push(_lin('=',C));
   return _fechar(L,C);
@@ -6534,13 +6506,13 @@ function _layoutCozinha(v){
 // ── Embrulha o texto num HTML pronto pra impressão (janela do Windows) ───────
 function _htmlCupom(texto){
   var mm=parseInt(configAtual.print_largura||'80');
-  var fonte = mm<=60 ? '9.5px' : '11px';
+  var fonte = mm<=60 ? '8.5px' : '10px';
   var esc = String(texto).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'
     + '@page{size:'+mm+'mm auto;margin:0}'
     + '*{margin:0;padding:0;box-sizing:border-box}'
-    + 'body{width:'+mm+'mm;padding:'+(mm<=60?'1.5mm':'3mm')+'}'
-    + 'pre{font-family:"Courier New",Consolas,monospace;font-size:'+fonte+';line-height:1.25;'
+    + 'body{width:'+mm+'mm;padding:'+(mm<=60?'1mm':'2mm')+'}'
+    + 'pre{font-family:"Courier New",Consolas,monospace;font-size:'+fonte+';line-height:1.15;'
     + 'white-space:pre;color:#000;font-weight:600;letter-spacing:0}'
     + '@media print{body{width:'+mm+'mm}}'
     + '</style></head><body><pre>'+esc+'</pre></body></html>';

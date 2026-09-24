@@ -3780,10 +3780,14 @@ def _imprimir_escpos(ip_porta, texto):
         s.settimeout(5)
         s.connect((ip, porta))
         s.send(b'\x1b\x40')  # ESC @ init
+        s.send(b'\x1b\x74\x02')  # ESC t 2 — seleciona a página de código PC850 (Latin 1). SEM ISSO os
+                                  # acentos (Ã, Ç, Ê...) saem borrados/trocados, porque a impressora fica
+                                  # no código de fábrica dela (geralmente CP437 ou um fallback chinês) e
+                                  # interpreta errado os bytes que o CP850 gera pros acentos.
         s.send(b'\x1b\x61\x01')  # Center align
         for line in texto.split('\n'):
             s.send(line.encode('cp850', errors='replace') + b'\n')
-        s.send(b'\n\n\n')  # Feed
+        s.send(b'\n\n')  # Feed (2 linhas — só o suficiente pra rasgar o papel, sem desperdiçar)
         s.send(b'\x1d\x56\x00')  # GS V 0 — full cut
         s.close()
         return True
@@ -3800,6 +3804,7 @@ def _imprimir_windows_direto(nome_impressora, texto):
         tmp.write(texto)
         tmp.close()
         subp_mod.run(['powershell', '-NoProfile', '-Command',
+            f"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
             f"Get-Content -Path '{tmp.name}' -Encoding UTF8 | Out-Printer -Name '{nome_impressora}'"],
             capture_output=True, timeout=10)
         os.unlink(tmp.name)
