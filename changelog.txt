@@ -1,4 +1,7 @@
-﻿## v4.9.10
+﻿## v4.9.11
+- bug
+
+## v4.9.10
 - CORREÇÃO DE BUGS DE IMPRESSÃO
 
 ## v4.9.6
