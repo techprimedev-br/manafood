@@ -5952,12 +5952,18 @@ function _initEstoqueEvents(){
 
 async function loadHistorico(){
   const data=await api('/vendas'); if(!data) return;
+  // Evita redesenhar a lista inteira (e deslocar os botões embaixo do clique do
+  // usuário) quando o auto-refresh roda e os dados são exatamente os mesmos —
+  // isso é o que causava reimprimir/editar o pedido errado por causa do DOM
+  // trocando de lugar bem na hora do clique.
+  const mudou = JSON.stringify(data)!==JSON.stringify(window._historicoCache);
   window._historicoCache = data; // cache para modal de edição
   const ativas=data.filter(v=>!v.cancelada && !v.descartada);
   const total=ativas.reduce((s,v)=>s+v.total,0);
   document.getElementById('hist-count').textContent=ativas.length;
   document.getElementById('hist-total').textContent=fmt(total);
   document.getElementById('hist-ticket').textContent=ativas.length?fmt(total/ativas.length):fmt(0);
+  if(!mudou) return;
   const el=document.getElementById('hist-list');
   if(!data.length){el.innerHTML='<div class="empty">Nenhuma venda ainda</div>';return}
   const icons={dinheiro:'💵',cartao_credito:'💳',cartao_debito:'🏧',pix:'📱',crediario:'📋'};
@@ -6506,45 +6512,16 @@ function _layoutCozinha(v){
 // ── Embrulha o texto num HTML pronto pra impressão (janela do Windows) ───────
 function _htmlCupom(texto){
   var mm=parseInt(configAtual.print_largura||'80');
-  // ── Renderiza o cupom como IMAGEM (bitmap), não como texto ──────────────────
-  // Isso existe por causa de um problema real: impressoras térmicas instaladas
-  // no Windows com driver "Genérico / Somente Texto" reconvertem o texto da
-  // impressão pra um código de página escolhido no PRÓPRIO DRIVER (fora do
-  // alcance do sistema), e isso embaralha acentos (Ã, Ç, Ê viram símbolos
-  // estranhos). Mandando uma imagem já pronta, não existe texto pra reconverter
-  // — a impressora só reproduz os pixels, então o acento sai sempre correto,
-  // não importa como o driver está configurado.
-  var pxWidth = mm<=60 ? 384 : 576;   // padrão ESC/POS a 203dpi: 8 pontos por mm
-  var linhas = String(texto).split('\n');
-  var canvas = document.createElement('canvas');
-  canvas.width = pxWidth;
-  var ctx = canvas.getContext('2d');
-
-  // Acha o maior tamanho de fonte que ainda cabe a linha mais larga no papel
-  var maiorLinha = linhas.reduce(function(a,b){return b.length>a.length?b:a},'');
-  var fontSize = mm<=60 ? 22 : 24;
-  ctx.font = 'bold '+fontSize+'px "Courier New", Consolas, monospace';
-  while(fontSize>8 && ctx.measureText(maiorLinha||'M').width > pxWidth-6){
-    fontSize--;
-    ctx.font = 'bold '+fontSize+'px "Courier New", Consolas, monospace';
-  }
-
-  var lineHeight = Math.round(fontSize*1.18);
-  canvas.height = lineHeight*linhas.length + 10;
-  // redefine a fonte (mudar o height do canvas reseta o contexto)
-  ctx.font = 'bold '+fontSize+'px "Courier New", Consolas, monospace';
-  ctx.fillStyle = '#000';
-  ctx.textBaseline = 'top';
-  linhas.forEach(function(l,i){ ctx.fillText(l, 3, i*lineHeight+5); });
-
-  var dataUrl = canvas.toDataURL('image/png');
+  var fonte = mm<=60 ? '8.5px' : '10px';
+  var esc = String(texto).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'
     + '@page{size:'+mm+'mm auto;margin:0}'
     + '*{margin:0;padding:0;box-sizing:border-box}'
-    + 'body{width:'+mm+'mm}'
-    + 'img{width:100%;display:block}'
+    + 'body{width:'+mm+'mm;padding:'+(mm<=60?'1mm':'2mm')+'}'
+    + 'pre{font-family:"Courier New",Consolas,monospace;font-size:'+fonte+';line-height:1.15;'
+    + 'white-space:pre;color:#000;font-weight:600;letter-spacing:0}'
     + '@media print{body{width:'+mm+'mm}}'
-    + '</style></head><body><img src="'+dataUrl+'"></body></html>';
+    + '</style></head><body><pre>'+esc+'</pre></body></html>';
 }
 
 function _htmlDAV(v){     return _htmlCupom(_layoutDAV(v)); }
