@@ -659,17 +659,15 @@ def api_listar_clientes():
     c.execute("""
         SELECT cl.*,
                COALESCE(cl.status_cliente, 'ativo') AS status_cliente,
-               COUNT(DISTINCT CASE WHEN v.cancelada=0 AND v.descartada=0 THEN v.id END) AS total_compras,
-               COALESCE(SUM(CASE WHEN ct.status='pendente' THEN ct.valor ELSE 0 END),0) AS saldo_devedor,
+               (SELECT COUNT(*) FROM vendas v WHERE v.cliente_id=cl.id AND v.cancelada=0 AND v.descartada=0) AS total_compras,
+               (SELECT COALESCE(SUM(ct.valor),0) FROM contas ct WHERE ct.cliente_id=cl.id AND ct.tipo='receber' AND ct.status='pendente') AS saldo_devedor,
                (SELECT COUNT(*) FROM entradas_xml ex WHERE ex.fornecedor_id=cl.id) AS fornecedor_qtd_compras,
                (SELECT COALESCE(SUM(valor_total),0) FROM entradas_xml ex WHERE ex.fornecedor_id=cl.id) AS fornecedor_total_gasto,
                cv.nome AS convenio_nome, cv.tipo AS convenio_tipo, cv.sem_limite AS convenio_sem_limite, cv.limite_credito AS convenio_limite
         FROM clientes cl
-        LEFT JOIN vendas v  ON v.cliente_id = cl.id
-        LEFT JOIN contas ct ON ct.cliente_id = cl.id AND ct.tipo='receber'
         LEFT JOIN convenios cv ON cv.id = cl.convenio_id
         WHERE cl.ativo=1
-        GROUP BY cl.id ORDER BY cl.nome
+        ORDER BY cl.nome
     """)
     r = [dict(x) for x in c.fetchall()]; conn.close(); return r
 
@@ -955,20 +953,49 @@ def api_cancelar_venda(data):
               (motivo, agora, venda_id))
     # Estorna o lançamento financeiro (se não crediário)
     if venda['tipo_pagamento'] != 'crediario':
-        c.execute("SELECT id FROM financeiro WHERE descricao=?", (f"Venda #{venda_id}",))
-        fin = c.fetchone()
-        if fin:
-            c.execute("DELETE FROM financeiro WHERE id=?", (fin['id'],))
-        # Lança saída de estorno (data local, mesma lógica do fix de fuso horário)
+        # Mantém a entrada original e lança a saída de estorno: o rastro fica no
+        # financeiro e o saldo líquido da venda cancelada é zero. (Antes a entrada
+        # era apagada E a saída lançada, descontando o valor duas vezes.)
         c.execute("INSERT INTO financeiro (tipo,descricao,valor,categoria,pagamento,data_movimentacao) VALUES (?,?,?,?,?,?)",
                   ('saida', f"Cancelamento Venda #{venda_id} — {motivo}", venda['total'], 'Cancelamento', venda['tipo_pagamento'], _hoje()))
     # Se crediário, cancela a conta a receber gerada
     else:
         c.execute("UPDATE contas SET status='cancelado' WHERE venda_id=? AND status='pendente'", (venda_id,))
+        # Conta que o cliente já tinha pago: devolve o valor (saída) e cancela a conta
+        c.execute("SELECT id,valor FROM contas WHERE venda_id=? AND status='pago'", (venda_id,))
+        for ct_pg in c.fetchall():
+            c.execute("INSERT INTO financeiro (tipo,descricao,valor,categoria,pagamento,data_movimentacao) VALUES (?,?,?,?,?,?)",
+                      ('saida', f"Estorno de recebimento — Cancelamento Venda #{venda_id} — {motivo}", ct_pg['valor'], 'Cancelamento', 'estorno', _hoje()))
+            c.execute("UPDATE contas SET status='cancelado' WHERE id=?", (ct_pg['id'],))
+            if venda.get('cliente_id'):
+                c.execute("INSERT INTO historico_cliente (cliente_id,tipo,descricao,valor,referencia_id) VALUES (?,?,?,?,?)",
+                          (venda['cliente_id'], 'estorno', f"↩ Estorno por cancelamento da Venda #{venda_id}", ct_pg['valor'], ct_pg['id']))
     # Devolve estoque
     c.execute("SELECT produto_id, quantidade FROM itens_venda WHERE venda_id=?", (venda_id,))
     for item in c.fetchall():
         c.execute("UPDATE produtos SET quantidade=quantidade+? WHERE id=?", (item['quantidade'], item['produto_id']))
+        # Devolve também os ingredientes que a venda descontou
+        c.execute("SELECT ingrediente_id,quantidade_usada FROM produto_ingredientes WHERE produto_id=?", (item['produto_id'],))
+        for ing in c.fetchall():
+            c.execute("UPDATE ingredientes SET quantidade=quantidade+? WHERE id=?",
+                      (ing['quantidade_usada'] * item['quantidade'], ing['ingrediente_id']))
+    # Reverte cashback e pontos ganhos nessa venda (sem deixar o saldo negativo)
+    if venda.get('cliente_id'):
+        c.execute("SELECT COALESCE(SUM(valor),0) AS v FROM movimentos_fidelidade WHERE venda_id=? AND tipo='cashback_ganho'", (venda_id,))
+        cb = float(c.fetchone()['v'] or 0)
+        if cb > 0:
+            c.execute("UPDATE clientes SET cashback_saldo = MAX(0, cashback_saldo - ?) WHERE id=?", (cb, venda['cliente_id']))
+            c.execute("INSERT INTO movimentos_fidelidade (cliente_id,tipo,valor,venda_id,descricao) VALUES (?,?,?,?,?)",
+                      (venda['cliente_id'], 'cashback_estorno', -cb, venda_id, f"Cashback estornado — venda #{venda_id} cancelada"))
+        c.execute("SELECT COALESCE(SUM(pontos),0) AS p FROM movimentos_fidelidade WHERE venda_id=? AND tipo='pontos_ganho'", (venda_id,))
+        pt = int(c.fetchone()['p'] or 0)
+        if pt > 0:
+            c.execute("UPDATE clientes SET pontos = MAX(0, pontos - ?) WHERE id=?", (pt, venda['cliente_id']))
+            c.execute("INSERT INTO movimentos_fidelidade (cliente_id,tipo,pontos,venda_id,descricao) VALUES (?,?,?,?,?)",
+                      (venda['cliente_id'], 'pontos_estorno', -pt, venda_id, f"Pontos estornados — venda #{venda_id} cancelada"))
+    # Devolve o uso do cupom
+    if venda.get('cupom'):
+        c.execute("UPDATE cupons SET usos = MAX(0, usos-1) WHERE codigo=?", (venda['cupom'],))
     _log(c, uid, unome, 'CANCELAR_VENDA', 'PDV',
          f"Venda #{venda_id} cancelada — {fmt_val(venda['total'])} — Motivo: {motivo}")
     conn.commit(); conn.close()
@@ -2749,8 +2776,8 @@ def api_estornar_conta(data):
     if not conta: conn.close(); return {"ok":False,"erro":"nao encontrada"}
     conta=dict(conta)
     if conta['status']!='pago': conn.close(); return {"ok":False,"erro":"conta nao esta paga"}
-    if conta.get('financeiro_id'):
-        c.execute("DELETE FROM financeiro WHERE id=?", (conta['financeiro_id'],))
+    # Mantém a baixa original no financeiro e lança a saída de estorno (saldo líquido zero).
+    # Antes a baixa era apagada E a saída lançada, descontando o valor duas vezes.
     c.execute("UPDATE contas SET status='estornado', financeiro_id=NULL WHERE id=?", (conta_id,))
     tipo_fin='saida' if conta['tipo']=='receber' else 'entrada'
     c.execute("INSERT INTO financeiro (tipo,descricao,valor,categoria,pagamento,data_movimentacao) VALUES (?,?,?,?,?,?)",
@@ -2845,15 +2872,20 @@ def api_login(data):
     import json as _jlogin
     perms_obj = None
     try:
-        if u.get('perms_custom'): perms_obj = _jlogin.loads(u['perms_custom'])
+        if u['perfil'] == 'personalizado' and u.get('perms_custom'): perms_obj = _jlogin.loads(u['perms_custom'])
     except: pass
     return {"ok": True, "usuario": {"id": u['id'], "nome": u['nome'], "usuario": u['usuario'], "perfil": u['perfil'], "perms_custom": perms_obj}}
 
 def api_listar_usuarios():
     conn = get_connection(); c = conn.cursor()
     _seed_admin(conn, c)
-    c.execute("SELECT id,nome,usuario,perfil,ativo,created_at FROM usuarios ORDER BY nome")
-    r = [dict(x) for x in c.fetchall()]; conn.close(); return r
+    c.execute("SELECT id,nome,usuario,perfil,ativo,created_at,perms_custom FROM usuarios ORDER BY nome")
+    r = [dict(x) for x in c.fetchall()]; conn.close()
+    import json as _jlu
+    for u in r:
+        try: u['perms_custom'] = _jlu.loads(u['perms_custom']) if u.get('perms_custom') else None
+        except Exception: u['perms_custom'] = None
+    return r
 
 def api_cadastrar_usuario(data):
     conn = get_connection(); c = conn.cursor()
@@ -2861,14 +2893,17 @@ def api_cadastrar_usuario(data):
     usuario = data.get('usuario','').strip().lower()
     senha   = data.get('senha','').strip()
     perfil  = data.get('perfil','operador')
-    if perfil not in ('admin','gerente','operador','caixa'): perfil='operador'
+    if perfil not in ('admin','gerente','operador','caixa','personalizado'): perfil='operador'
     uid     = data.get('_uid'); unome = data.get('_unome','Sistema')
     if not nome or not usuario or not senha:
         conn.close(); return {"ok": False, "erro": "Preencha todos os campos"}
     c.execute("SELECT id FROM usuarios WHERE LOWER(usuario)=?", (usuario,))
     if c.fetchone(): conn.close(); return {"ok": False, "erro": "Usuário já existe"}
-    c.execute("INSERT INTO usuarios (nome,usuario,senha,perfil) VALUES (?,?,?,?)",
-              (nome, usuario, _hash(senha), perfil))
+    import json as _jcu
+    _pcc = data.get('perms_custom')
+    _pcc_v = _jcu.dumps(_pcc) if (perfil == 'personalizado' and _pcc) else ''
+    c.execute("INSERT INTO usuarios (nome,usuario,senha,perfil,perms_custom) VALUES (?,?,?,?,?)",
+              (nome, usuario, _hash(senha), perfil, _pcc_v))
     novo_id = c.lastrowid
     _log(c, uid, unome, 'CRIAR', 'Usuários', f"Usuário '{usuario}' ({perfil}) criado")
     conn.commit(); conn.close(); return {"ok": True, "id": novo_id}
@@ -2878,18 +2913,15 @@ def api_atualizar_usuario(data):
     uid_alvo = int(data['id'])
     nome     = data.get('nome','').strip()
     perfil   = data.get('perfil','operador')
-    if perfil not in ('admin','gerente','operador','caixa'): perfil='operador'
+    if perfil not in ('admin','gerente','operador','caixa','personalizado'): perfil='operador'
     ativo    = int(data.get('ativo', 1))
     uid      = data.get('_uid'); unome = data.get('_unome','Sistema')
     c.execute("SELECT nome,perfil,ativo FROM usuarios WHERE id=?", (uid_alvo,))
     antes = dict(c.fetchone() or {})
     import json as _json3
     _pcu = data.get('perms_custom')
-    _pcv = _json3.dumps(_pcu) if _pcu else ''
-    if _pcv:
-        c.execute("UPDATE usuarios SET nome=?,perfil=?,ativo=?,perms_custom=? WHERE id=?", (nome, perfil, ativo, _pcv, uid_alvo))
-    else:
-        c.execute("UPDATE usuarios SET nome=?,perfil=?,ativo=? WHERE id=?", (nome, perfil, ativo, uid_alvo))
+    _pcv = _json3.dumps(_pcu) if (perfil == 'personalizado' and _pcu) else ''
+    c.execute("UPDATE usuarios SET nome=?,perfil=?,ativo=?,perms_custom=? WHERE id=?", (nome, perfil, ativo, _pcv, uid_alvo))
     nova_senha = data.get('nova_senha','').strip()
     if nova_senha:
         c.execute("UPDATE usuarios SET senha=? WHERE id=?", (_hash(nova_senha), uid_alvo))
@@ -3281,15 +3313,13 @@ def api_relatorio(params):
 
     # top clientes por faturamento
     c.execute(f"""SELECT cl.nome, cl.telefone,
-                         COUNT(DISTINCT v.id)  AS total_compras,
-                         COALESCE(SUM(v.total),0) AS faturamento,
-                         COALESCE(SUM(CASE WHEN ct.status='pendente' THEN ct.valor ELSE 0 END),0) AS saldo_devedor
+                         (SELECT COUNT(*) FROM vendas v WHERE v.cliente_id=cl.id AND v.cancelada=0 AND v.descartada=0{(' AND date(v.data_venda)>=? AND date(v.data_venda)<=?' if dt_ini and dt_fim else (' AND date(v.data_venda)>=?' if dt_ini else (' AND date(v.data_venda)<=?' if dt_fim else '')))}) AS total_compras,
+                         (SELECT COALESCE(SUM(v.total),0) FROM vendas v WHERE v.cliente_id=cl.id AND v.cancelada=0 AND v.descartada=0{(' AND date(v.data_venda)>=? AND date(v.data_venda)<=?' if dt_ini and dt_fim else (' AND date(v.data_venda)>=?' if dt_ini else (' AND date(v.data_venda)<=?' if dt_fim else '')))}) AS faturamento,
+                         (SELECT COALESCE(SUM(ct.valor),0) FROM contas ct WHERE ct.cliente_id=cl.id AND ct.tipo='receber' AND ct.status='pendente') AS saldo_devedor
                   FROM clientes cl
-                  LEFT JOIN vendas v  ON v.cliente_id=cl.id AND v.cancelada=0 AND v.descartada=0{(' AND date(v.data_venda)>=? AND date(v.data_venda)<=?' if dt_ini and dt_fim else (' AND date(v.data_venda)>=?' if dt_ini else (' AND date(v.data_venda)<=?' if dt_fim else '')))}
-                  LEFT JOIN contas ct ON ct.cliente_id=cl.id AND ct.tipo='receber'
                   WHERE cl.ativo=1
-                  GROUP BY cl.id ORDER BY faturamento DESC LIMIT 10""",
-              ([dt_ini, dt_fim] if dt_ini and dt_fim else ([dt_ini] if dt_ini else ([dt_fim] if dt_fim else []))))
+                  ORDER BY faturamento DESC LIMIT 10""",
+              (([dt_ini, dt_fim] if dt_ini and dt_fim else ([dt_ini] if dt_ini else ([dt_fim] if dt_fim else []))) * 2))
     top_clientes = [dict(r) for r in c.fetchall()]
 
     # inadimplentes (saldo devedor pendente)

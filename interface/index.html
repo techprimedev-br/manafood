@@ -9124,7 +9124,7 @@ const PERMS_PADRAO = {
   admin:    {pdv:1,estoque:1,clientes:1,caixa:1,historico:1,entregas:1,financeiro:1,relatorio:1,'editar-venda':1,'cancelar-venda':1,'editar-produto':1,contas:1},
   gerente:  {pdv:1,estoque:1,clientes:1,caixa:1,historico:1,entregas:1,financeiro:1,relatorio:1,'editar-venda':1,'cancelar-venda':1,'editar-produto':1,contas:1},
   operador: {pdv:1,estoque:0,clientes:1,caixa:0,historico:1,entregas:0,financeiro:0,relatorio:0,'editar-venda':0,'cancelar-venda':0,'editar-produto':0,contas:0},
-  caixa:    {pdv:1,estoque:0,clientes:0,caixa:1,historico:1,entregas:0,financeiro:0,relatorio:0,'editar-venda':0,'cancelar-venda':0,'editar-produto':0,contas:0},
+  caixa:    {pdv:1,estoque:0,clientes:0,caixa:1,historico:1,entregas:1,financeiro:0,relatorio:0,'editar-venda':0,'cancelar-venda':0,'editar-produto':0,contas:0},
 };
 
 function onPerfilChange(){
@@ -9156,8 +9156,11 @@ function _getPermsFromCheckboxes(){
 
 function _aplicarPermsPersonalizadas(perms){
   if(!perms) return;
+  // Esconde todas as abas restritas antes (evita sobrar aba de um login anterior)
+  document.querySelectorAll('.nav-admin,.nav-gerente,[data-perfil]').forEach(b=>{ b.style.display='none'; });
   // Abas de navegação
   const navMap = {
+    rotas:      '[onclick*="rotas"]',
     financeiro: '[onclick*="financeiro"]',
     contas:     '[onclick*="contas"]',
     caixa:      '[onclick*="caixa"]',
@@ -9169,8 +9172,12 @@ function _aplicarPermsPersonalizadas(perms){
   };
   Object.entries(navMap).forEach(([k,sel])=>{
     const btn = document.querySelector('.nav-btn'+sel);
-    if(btn && perms[k]!==undefined) btn.style.display = perms[k] ? '' : 'none';
+    const ok  = (k==='rotas') ? perms['entregas'] : perms[k];   // Rotas de Entrega acompanha Entregas
+    if(btn && ok!==undefined) btn.style.display = ok ? '' : 'none';
   });
+  let _stc = document.getElementById('perm-style');
+  if(!_stc){ _stc = document.createElement('style'); _stc.id='perm-style'; document.head.appendChild(_stc); }
+  _stc.textContent = perms['editar-produto'] ? '.perm-gerente{display:inline-flex!important}' : '.perm-gerente{display:none!important}';
   // Botões de ação
   window._podeEditarVenda   = !!perms['editar-venda'];
   window._podeCancelarVenda = !!perms['cancelar-venda'];
@@ -9949,6 +9956,13 @@ function _aplicarPermissoes(perfil, permsCustom){
   if(!_styleEl){ _styleEl = document.createElement('style'); _styleEl.id='perm-style'; document.head.appendChild(_styleEl); }
   _styleEl.textContent = nivel>=3 ? '.perm-gerente{display:inline-flex!important}' : '.perm-gerente{display:none!important}';
 
+  // Abas extras de perfis fixos (as abas restritas são .nav-gerente e ficariam ocultas)
+  const _extraNav = { caixa:['entregas','rotas','caixa'] };
+  (_extraNav[perfil]||[]).forEach(id=>{
+    const b = document.querySelector('.nav-btn[onclick*="\''+id+'\'"]');
+    if(b) b.style.display = '';
+  });
+
   // Atualiza label de perfil com badge
   const badges={
     admin:   '👑 Admin',
@@ -10095,6 +10109,7 @@ function resetUsuarioForm(){
   document.getElementById('usr-senha').value='';
   document.getElementById('usr-nova-senha').value='';
   document.getElementById('usr-perfil').value='operador';
+  const _pw0 = document.getElementById('usr-perms-wrap'); if(_pw0) _pw0.style.display='none';
   document.getElementById('usr-ativo').value='1';
   document.getElementById('usr-form-titulo').textContent='➕ Novo usuário';
   document.getElementById('usr-btn-salvar').textContent='💾 Cadastrar';
@@ -10104,7 +10119,7 @@ function resetUsuarioForm(){
   document.getElementById('usr-ativo-wrap').style.display='none';
 }
 
-function editarUsuario(id,nome,login,perfil,ativo){
+function editarUsuario(id,nome,login,perfil,ativo,permsCustom){
   document.getElementById('usr-id').value=id;
   document.getElementById('usr-nome').value=nome;
   document.getElementById('usr-login').value=login;
@@ -10112,6 +10127,11 @@ function editarUsuario(id,nome,login,perfil,ativo){
   document.getElementById('usr-senha').parentElement.style.display='none';
   document.getElementById('usr-nova-senha-wrap').style.display='';
   document.getElementById('usr-perfil').value=perfil;
+  const _pw = document.getElementById('usr-perms-wrap');
+  if(_pw){
+    _pw.style.display = perfil==='personalizado' ? 'block' : 'none';
+    if(perfil==='personalizado') _setPermsCheckboxes(permsCustom || PERMS_PADRAO.operador);
+  }
   document.getElementById('usr-ativo').value=ativo;
   document.getElementById('usr-ativo-wrap').style.display='';
   document.getElementById('usr-form-titulo').textContent='✏️ Editar — '+nome;

@@ -1,4 +1,7 @@
-﻿## v4.9.11
+﻿## v4.10.0
+- ajuste de bug de grupo de usuário e contas a receber de clientes
+
+## v4.9.11
 - bug
 
 ## v4.9.10
