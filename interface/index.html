@@ -2401,6 +2401,29 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       <div class="panel-title">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Histórico de vendas
       </div>
+      <div class="card" id="hist-filtros" style="padding:12px 14px;margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:3px">De</label>
+          <input type="date" id="hist-de" onchange="loadHistorico()" style="padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:13px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:3px">Até</label>
+          <input type="date" id="hist-ate" onchange="loadHistorico()" style="padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:13px">
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn-sm" onclick="_histAtalho('hoje')">Hoje</button>
+          <button class="btn-sm" onclick="_histAtalho('ontem')">Ontem</button>
+          <button class="btn-sm" onclick="_histAtalho('semana')">Esta semana</button>
+          <button class="btn-sm" onclick="_histAtalho('semana_passada')">Semana passada</button>
+          <button class="btn-sm" onclick="_histAtalho('mes')">Este mês</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
+          <button class="btn-sm" onclick="_histTodos(false)">Recolher dias</button>
+          <button class="btn-sm" onclick="_histTodos(true)">Expandir dias</button>
+          <button class="btn-sm btn-baixar" onclick="exportarHistorico('excel')">📊 Excel</button>
+          <button class="btn-sm btn-baixar" onclick="exportarHistorico('pdf')">📄 PDF</button>
+        </div>
+      </div>
       <div class="metrics m3">
         <div class="metric"><div class="metric-label">Total vendas</div><div class="metric-value" id="hist-count">—</div></div>
         <div class="metric"><div class="metric-label">Receita total</div><div class="metric-value green" id="hist-total">—</div></div>
@@ -3204,6 +3227,14 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
             <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;cursor:pointer">
               <input type="checkbox" id="cfg-dav-cnpj" style="width:16px;height:16px;accent-color:#ea580c">
               Imprimir CNPJ no DAV (opcional)
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="cfg-print-cancelamento" style="width:16px;height:16px;accent-color:#ea580c">
+              🚫 Imprimir comprovante ao cancelar uma venda
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="cfg-print-sangria-suprimento" style="width:16px;height:16px;accent-color:#ea580c">
+              💵 Imprimir comprovante de sangria e suprimento
             </label>
             <div id="print-config-escpos" style="display:none;margin-top:10px">
               <div class="form-group"><label>IP Impressora Balcão</label><input id="cfg-print-balcao-ip" placeholder="192.168.0.100:9100"></div>
@@ -5887,6 +5918,12 @@ function _initHistoricoEvents(){
   // vezes (ex: o popup de "Recuperar venda?" aparecendo репetido). onclick
   // sempre SUBSTITUI o handler anterior, então nunca acumula.
   el.onclick = function(e){
+    // Expandir/recolher dia
+    const btnDia = e.target.closest('[data-dia-toggle]');
+    if(btnDia){ _histToggleDia(btnDia.dataset.diaToggle); return; }
+    // Reimprimir comprovante de cancelamento
+    const btnCC = e.target.closest('[data-comp-cancel]');
+    if(btnCC){ imprimirComprovanteCancelamento(btnCC.dataset.compCancel, true); return; }
     // Cancelar
     const btnC = e.target.closest('[data-cancelar]');
     if(btnC){ abrirCancelarVenda(btnC.dataset.cancelar, btnC.dataset.total, btnC.dataset.cliente, btnC.dataset.pag); return; }
@@ -5950,8 +5987,176 @@ function _initEstoqueEvents(){
   }
 }
 
+// ── HISTÓRICO: filtro de datas (padrão = semana atual) e vendas por dia ───────
+window._histDiasFechados = window._histDiasFechados || {};
+function _isoData(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function _histSemana(offset){            // semana de segunda a domingo; offset 0 = atual, -1 = passada
+  var h=new Date(), dow=(h.getDay()+6)%7;
+  var ini=new Date(h.getFullYear(),h.getMonth(),h.getDate()-dow+(offset||0)*7);
+  var fim=new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+6);
+  return [ini,fim];
+}
+function _histAtalho(k){
+  var h=new Date(), ini, fim, s;
+  if(k==='hoje'){ ini=fim=h; }
+  else if(k==='ontem'){ ini=fim=new Date(h.getFullYear(),h.getMonth(),h.getDate()-1); }
+  else if(k==='semana_passada'){ s=_histSemana(-1); ini=s[0]; fim=s[1]; }
+  else if(k==='mes'){ ini=new Date(h.getFullYear(),h.getMonth(),1); fim=new Date(h.getFullYear(),h.getMonth()+1,0); }
+  else { s=_histSemana(0); ini=s[0]; fim=s[1]; }
+  document.getElementById('hist-de').value=_isoData(ini);
+  document.getElementById('hist-ate').value=_isoData(fim);
+  loadHistorico();
+}
+function _histPeriodo(){                  // lê os filtros; se vazios, assume a semana atual
+  var elDe=document.getElementById('hist-de'), elAte=document.getElementById('hist-ate');
+  var de=elDe?elDe.value:'', ate=elAte?elAte.value:'';
+  if(!de&&!ate){ var s=_histSemana(0); de=_isoData(s[0]); ate=_isoData(s[1]); }
+  else if(!de) de=ate;
+  else if(!ate) ate=de;
+  if(de>ate){ var t=de; de=ate; ate=t; }
+  if(elDe) elDe.value=de;
+  if(elAte) elAte.value=ate;
+  return {de:de,ate:ate};
+}
+function _histToggleDia(k){
+  var fechado=!window._histDiasFechados[k];
+  window._histDiasFechados[k]=fechado;
+  var corpo=document.getElementById('hist-dia-'+k), seta=document.getElementById('hist-seta-'+k);
+  if(corpo) corpo.style.display=fechado?'none':'';
+  if(seta) seta.textContent=fechado?'▸':'▾';
+}
+function _histTodos(abrir){
+  document.querySelectorAll('#hist-list .hist-dia').forEach(function(d){
+    var k=d.dataset.dia;
+    window._histDiasFechados[k]=!abrir;
+    var corpo=document.getElementById('hist-dia-'+k), seta=document.getElementById('hist-seta-'+k);
+    if(corpo) corpo.style.display=abrir?'':'none';
+    if(seta) seta.textContent=abrir?'▾':'▸';
+  });
+}
+function _histAgruparPorDia(data,rowHtml){
+  var grupos={}, ordem=[];
+  data.forEach(function(v){
+    var k=String(v.data_venda||'').slice(0,10)||'sem-data';
+    if(!grupos[k]){ grupos[k]=[]; ordem.push(k); }
+    grupos[k].push(v);
+  });
+  ordem.sort().reverse();                  // dia mais recente primeiro
+  var hoje=_isoData(new Date());
+  return ordem.map(function(k){
+    var vs=grupos[k];
+    var ativas=vs.filter(function(v){return !v.cancelada&&!v.descartada;});
+    var canc=vs.filter(function(v){return v.cancelada;}).length;
+    var tot=ativas.reduce(function(s,v){return s+(parseFloat(v.total)||0);},0);
+    var titulo=k, m=k.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(m){
+      var sem=new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString('pt-BR',{weekday:'long'});
+      titulo=sem.charAt(0).toUpperCase()+sem.slice(1)+', '+m[3]+'/'+m[2]+'/'+m[1];
+    }
+    var fechado=!!window._histDiasFechados[k];
+    var resumo=ativas.length+' venda'+(ativas.length===1?'':'s')+' · <b>'+fmt(tot)+'</b>'
+      +(ativas.length?' · ticket '+fmt(tot/ativas.length):'')
+      +(canc?' · 🚫 '+canc+' cancelada'+(canc===1?'':'s'):'');
+    return '<div class="hist-dia" data-dia="'+k+'">'
+      +'<div data-dia-toggle="'+k+'" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;'
+      +'padding:10px 14px;background:var(--accent-lt);border-bottom:1px solid var(--border);font-size:13px;font-weight:700">'
+      +'<span><span id="hist-seta-'+k+'">'+(fechado?'▸':'▾')+'</span> 📅 '+titulo
+      +(k===hoje?' <span style="font-size:10px;background:var(--accent);color:#fff;padding:2px 7px;border-radius:8px;margin-left:4px">HOJE</span>':'')+'</span>'
+      +'<span style="font-weight:600;font-size:12px">'+resumo+'</span></div>'
+      +'<div id="hist-dia-'+k+'" style="'+(fechado?'display:none':'')+'">'+vs.map(rowHtml).join('')+'</div></div>';
+  }).join('');
+}
+
+// ── EXPORTAR HISTÓRICO (Excel / PDF) — respeita o período filtrado na tela ────
+function _hEsc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+async function exportarHistorico(formato){
+  const per=_histPeriodo();
+  if(formato==='excel'){
+    try{
+      toast('Gerando Excel...');
+      const res=await fetch(API+'/vendas/exportar?de='+per.de+'&ate='+per.ate,{cache:'no-store'});
+      if(!res.ok){
+        let msg='Erro ao gerar o Excel';
+        try{ const j=await res.json(); if(j&&j.erro) msg=j.erro; }catch(e){}
+        toast(msg,'err'); return;
+      }
+      const blob=await res.blob();
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download='historico_vendas_'+per.de+'_a_'+per.ate+'.xlsx';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){URL.revokeObjectURL(url);},2000);
+      toast('Excel exportado!');
+    }catch(e){ toast('Não foi possível gerar o Excel','err'); }
+    return;
+  }
+  const data=await api('/vendas?de='+per.de+'&ate='+per.ate);
+  if(!data||!data.length){ toast('Nada para exportar no período','err'); return; }
+  const win=window.open('','_blank');
+  if(!win){ toast('Permita pop-ups para gerar o PDF','err'); return; }
+  win.document.write(_histHtmlPdf(data,per)); win.document.close();
+}
+function _histHtmlPdf(data,per){
+  const empresa=(typeof configAtual!=='undefined'&&configAtual&&configAtual.nome_empresa)||'Maná Food';
+  const br=function(iso){ return String(iso).split('-').reverse().join('/'); };
+  const ativa=function(v){ return !v.cancelada&&!v.descartada; };
+  const grupos={};
+  data.forEach(function(v){ const k=String(v.data_venda||'').slice(0,10)||'sem-data'; (grupos[k]=grupos[k]||[]).push(v); });
+  const dias=Object.keys(grupos).sort();
+  const sem=function(k){
+    const m=k.match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return '';
+    return new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString('pt-BR',{weekday:'long'});
+  };
+  const tot=function(vs){ return vs.filter(ativa).reduce(function(s,v){return s+(parseFloat(v.total)||0);},0); };
+  const todasAtivas=data.filter(ativa);
+  const receita=tot(data), nCanc=data.filter(function(v){return v.cancelada;}).length;
+
+  const linhasResumo=dias.map(function(k){
+    const vs=grupos[k], at=vs.filter(ativa), t=tot(vs);
+    return '<tr><td>'+br(k)+'</td><td>'+_hEsc(sem(k))+'</td><td class="n">'+at.length+'</td><td class="n">'+fmt(t)+'</td>'
+      +'<td class="n">'+fmt(at.length?t/at.length:0)+'</td><td class="n">'+vs.filter(function(v){return v.cancelada;}).length+'</td></tr>';
+  }).join('');
+
+  const detalhe=dias.map(function(k){
+    const vs=grupos[k].slice().sort(function(a,b){return (a.id||0)-(b.id||0);});
+    const rows=vs.map(function(v){
+      const st=v.descartada?'Descartada':(v.cancelada?'Cancelada':'');
+      const itens=(v.itens||[]).map(function(i){return _hEsc(i.nome)+' x'+_hEsc(i.quantidade);}).join(', ');
+      const cli=v.cliente||v.nome_cliente_balcao||v.nome_cliente_mesa||v.entrega_nome||'';
+      return '<tr'+(st?' class="canc"':'')+'><td>#'+_hEsc(v.id)+'</td><td>'+_hEsc(String(v.data_venda||'').replace('T',' ').slice(11,16))+'</td>'
+        +'<td>'+_hEsc(cli)+'</td><td>'+_hEsc(_pagLabelTxt(v.tipo_pagamento))+'</td><td>'+itens+'</td>'
+        +'<td class="n">'+fmt(v.total)+'</td><td>'+st+'</td></tr>';
+    }).join('');
+    return '<div class="dia"><h3>'+br(k)+' — '+_hEsc(sem(k))+' <span>'+vs.filter(ativa).length+' venda(s) · '+fmt(tot(vs))+'</span></h3>'
+      +'<table><thead><tr><th>Venda</th><th>Hora</th><th>Cliente</th><th>Pagamento</th><th>Itens</th><th class="n">Total</th><th>Status</th></tr></thead>'
+      +'<tbody>'+rows+'</tbody></table></div>';
+  }).join('');
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Histórico de vendas</title><style>'
+   +'@page{size:A4;margin:12mm}body{font-family:Arial,sans-serif;color:#111;font-size:11px}'
+   +'h1{font-size:18px;margin:0 0 2px}.sub{font-size:12px;color:#555;margin-bottom:12px}'
+   +'.cards{display:flex;gap:10px;margin-bottom:14px}.card{border:1px solid #ccc;border-radius:6px;padding:8px 12px;flex:1}'
+   +'.card b{display:block;font-size:15px;margin-top:2px}h2{font-size:13px;margin:14px 0 6px}'
+   +'h3{font-size:12px;margin:14px 0 4px;background:#f1f1f1;padding:5px 8px;display:flex;justify-content:space-between;page-break-after:avoid}'
+   +'h3 span{font-weight:400}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;vertical-align:top}'
+   +'th{background:#fafafa}.n{text-align:right;white-space:nowrap}tr{page-break-inside:avoid}.dia{page-break-inside:auto}'
+   +'.canc td{color:#999;text-decoration:line-through}.canc td:last-child{text-decoration:none;color:#c00;font-weight:700}'
+   +'</style></head><body>'
+   +'<h1>'+_hEsc(empresa)+'</h1><div class="sub">Histórico de vendas — '+br(per.de)+' a '+br(per.ate)+' — gerado em '+new Date().toLocaleString('pt-BR')+'</div>'
+   +'<div class="cards"><div class="card">Vendas<b>'+todasAtivas.length+'</b></div><div class="card">Receita<b>'+fmt(receita)+'</b></div>'
+   +'<div class="card">Ticket médio<b>'+fmt(todasAtivas.length?receita/todasAtivas.length:0)+'</b></div><div class="card">Canceladas<b>'+nCanc+'</b></div></div>'
+   +'<h2>Resumo por dia</h2><table><thead><tr><th>Data</th><th>Dia</th><th class="n">Vendas</th><th class="n">Total</th><th class="n">Ticket médio</th><th class="n">Canceladas</th></tr></thead><tbody>'+linhasResumo+'</tbody></table>'
+   +'<h2>Vendas por dia</h2>'+detalhe
+   +'<script>window.onload=function(){window.print()}<\/script></body></html>';
+}
+
 async function loadHistorico(){
-  const data=await api('/vendas'); if(!data) return;
+  const per=_histPeriodo();
+  const data=await api('/vendas?de='+per.de+'&ate='+per.ate); if(!data) return;
   // Evita redesenhar a lista inteira (e deslocar os botões embaixo do clique do
   // usuário) quando o auto-refresh roda e os dados são exatamente os mesmos —
   // isso é o que causava reimprimir/editar o pedido errado por causa do DOM
@@ -5965,10 +6170,10 @@ async function loadHistorico(){
   document.getElementById('hist-ticket').textContent=ativas.length?fmt(total/ativas.length):fmt(0);
   if(!mudou) return;
   const el=document.getElementById('hist-list');
-  if(!data.length){el.innerHTML='<div class="empty">Nenhuma venda ainda</div>';return}
+  if(!data.length){el.innerHTML='<div class="empty">Nenhuma venda no período selecionado</div>';return}
   const icons={dinheiro:'💵',cartao_credito:'💳',cartao_debito:'🏧',pix:'📱',crediario:'📋'};
   const labels={dinheiro:'Dinheiro',cartao_credito:'Cartão Crédito',cartao_debito:'Cartão Débito',pix:'PIX',crediario:'Crediário'};
-  el.innerHTML=data.map(v=>{
+  const _rowHtml=(v)=>{
     const cancelada=!!v.cancelada;
     const descartada=!!v.descartada;
     const mesaAberta = (v.tipo_atendimento==='mesa'||v.tipo_atendimento==='local') && v.status_mesa==='aberta';
@@ -5988,7 +6193,7 @@ async function loadHistorico(){
       : atendBadge;
     const btnCancel = (!cancelada && !descartada && window._podeCancelarVenda)
       ? `<button class="btn-sm btn-del" style="font-size:11px;padding:4px 9px" data-cancelar="${v.id}" data-total="${v.total}" data-cliente="${(v.cliente||'').replace(/"/g,'&quot;')}" data-pag="${v.tipo_pagamento}">🚫 Cancelar</button>`
-      : (cancelada ? `<span style="font-size:11px;color:var(--text3);font-style:italic">${v.motivo_cancelamento?'Motivo: '+v.motivo_cancelamento:''}</span>` : '');
+      : (cancelada ? `<span style="font-size:11px;color:var(--text3);font-style:italic">${v.motivo_cancelamento?'Motivo: '+v.motivo_cancelamento:''}</span><button class="btn-sm" style="font-size:11px;padding:4px 9px;border-color:#6b7280;color:#374151;background:#f3f4f6;margin-left:6px" data-comp-cancel="${v.id}">🧾 Comprovante</button>` : '');
     const btnEdit = (!cancelada && !descartada && window._podeEditarVenda)
       ? `<button class="btn-sm" style="font-size:11px;padding:4px 9px;border-color:var(--accent);color:var(--accent)" data-editar="${v.id}">✏️ Editar</button>`
       : '';
@@ -6046,7 +6251,8 @@ async function loadHistorico(){
         ${v.tipo_pagamento!=='crediario'?`<button class="btn-sm" style="font-size:11px;padding:4px 9px;border-color:#16a34a;color:#16a34a;background:#f0fdf4" data-alterar-pag="${v.id}" data-pag-atual="${v.tipo_pagamento}">💳 Pagamento</button>`:''}`}
       </div>
     </div>`;
-  }).join('');
+  };
+  el.innerHTML=_histAgruparPorDia(data,_rowHtml);
   _initHistoricoEvents();
 }
 
@@ -6549,6 +6755,129 @@ function _imprimir(html, tipo){
       else if(res&&res.erro) toast(res.erro,'err');
     });
   }
+}
+
+// ── COMPROVANTES: CANCELAMENTO DE VENDA / SANGRIA / SUPRIMENTO ───────────────
+// Usam o mesmo layout em texto monoespaçado do DAV (_printCols/_ed/_ctr...), então
+// saem iguais no popup do Windows, na impressora Windows por nome e no ESC/POS.
+function _dhBR(s){             // 'AAAA-MM-DD HH:MM:SS' (ou com 'T') -> 'dd/mm/aaaa hh:mm'
+  s=String(s||'').replace('T',' ');
+  var m=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}))?/);
+  if(!m) return s;
+  return m[3]+'/'+m[2]+'/'+m[1]+(m[4]?' '+m[4]+':'+m[5]:'');
+}
+function _agoraBR(){
+  var d=new Date();
+  return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+function _cabComprovante(titulo,C){
+  var emp=(typeof empresaAtual!=='undefined'&&empresaAtual)?empresaAtual:{};
+  var nomeEmp=emp.nome_fantasia||emp.razao_social||configAtual.nome_empresa||'Maná Food';
+  var L=[];
+  L.push(_lin('=',C));
+  L.push(_ctr(nomeEmp.toUpperCase(),C));
+  if(emp.cnpj&&(configAtual.dav_mostrar_cnpj||'1')==='1') L.push(_ctr('CNPJ: '+emp.cnpj,C));
+  L.push(_ctr(titulo,C));
+  L.push(_lin('=',C));
+  return L;
+}
+function _blocoAssinatura(L,C,rotulos){
+  rotulos.forEach(function(r){
+    L.push(''); L.push('');
+    L.push(_ctr(_lin('_',Math.min(30,C-4)),C));
+    L.push(_ctr(r,C));
+  });
+}
+
+function _layoutCancelamento(v){
+  var C=_printCols();
+  var L=_cabComprovante('COMPROVANTE DE CANCELAMENTO',C);
+  L.push('Venda Nº: '+String(v.id||'').padStart(6,'0'));
+  L.push('Venda em: '+_dhBR(v.data_venda));
+  L.push('Cancelada em: '+(v.cancelada_em?_dhBR(v.cancelada_em):_agoraBR()));
+  var quem=v.cancelada_por||((typeof usuarioLogado!=='undefined'&&usuarioLogado)?usuarioLogado.nome:'');
+  if(quem) L.push('Cancelada por: '+String(quem).toUpperCase());
+  if(v.usuario_nome) L.push('Vendedor: '+String(v.usuario_nome).toUpperCase());
+  if(v.cliente) L.push('Cliente: '+v.cliente);
+  L.push('Pagamento: '+_pagLabelTxt(v.tipo_pagamento));
+  L.push(_lin('-',C));
+  L.push('ITENS DA VENDA');
+  L.push(_lin('-',C));
+  var itens=v.itens||[];
+  itens.forEach(function(i){
+    var sub=(i.subtotal!=null)?i.subtotal:((parseFloat(i.preco_unitario)||0)*(parseFloat(i.quantidade)||0));
+    L.push(_ed(_qtd(i.quantidade)+'x '+(i.nome||''), _din(sub), C));
+  });
+  if(!itens.length) L.push('(sem itens)');
+  L.push(_lin('-',C));
+  L.push(_ed('TOTAL CANCELADO','R$ '+_din(v.total),C));
+  L.push(_lin('-',C));
+  L.push('MOTIVO:');
+  _quebra(v.motivo_cancelamento||'-',C).forEach(function(l){ L.push(l); });
+  _blocoAssinatura(L,C,['Responsável']);
+  L.push(_lin('=',C));
+  return _fechar(L,C);
+}
+
+function _layoutMovimentoCaixa(m){
+  var C=_printCols(), sangria=(m.tipo==='sangria');
+  var L=_cabComprovante(sangria?'COMPROVANTE DE SANGRIA':'COMPROVANTE DE SUPRIMENTO',C);
+  var ref=[];
+  if(m.numero) ref.push('Nº: '+String(m.numero).padStart(6,'0'));
+  if(m.caixa_id) ref.push('Caixa: #'+m.caixa_id);
+  if(ref.length) L.push(ref.join('   '));
+  L.push('Data: '+_agoraBR());
+  var op=(typeof usuarioLogado!=='undefined'&&usuarioLogado)?usuarioLogado.nome:'';
+  if(op) L.push('Operador: '+String(op).toUpperCase());
+  L.push(_lin('-',C));
+  L.push(_ed(sangria?'VALOR RETIRADO':'VALOR RECEBIDO','R$ '+_din(m.valor),C));
+  L.push(_lin('-',C));
+  L.push('MOTIVO:');
+  _quebra(m.descricao||'-',C).forEach(function(l){ L.push(l); });
+  _blocoAssinatura(L,C,sangria?['Retirado por','Operador do caixa']:['Entregue por','Operador do caixa']);
+  L.push(_lin('=',C));
+  return _fechar(L,C);
+}
+
+// Envia texto já formatado pelo método de impressão configurado
+function _imprimirTexto(texto,tipo){
+  var metodo=configAtual.print_metodo||'windows';
+  if(metodo==='windows'){
+    var f=document.getElementById('print-frame');
+    if(!f){ toast('Área de impressão não encontrada','err'); return; }
+    f.onload=null;
+    f.style.display='block';
+    f.onload=function(){
+      f.onload=null;
+      f.contentWindow.focus();
+      f.contentWindow.print();
+      setTimeout(function(){f.style.display='none';f.srcdoc='';},1500);
+    };
+    f.srcdoc=_htmlCupom(texto);
+  } else {
+    api('/imprimir','POST',{tipo:tipo||'dav',texto:texto}).then(function(res){
+      if(res&&res.ok) toast('Impresso!');
+      else if(res&&res.erro) toast(res.erro,'err');
+    });
+  }
+}
+
+// forcar=true ignora a configuração (usado no botão "Comprovante" do histórico)
+async function imprimirComprovanteCancelamento(vendaId,forcar){
+  if(!forcar && (configAtual.print_cancelamento||'0')!=='1') return;
+  var v=(window._historicoCache||[]).find(function(x){return String(x.id)===String(vendaId);});
+  if(!v){
+    var todas=await api('/vendas');
+    v=(todas||[]).find(function(x){return String(x.id)===String(vendaId);});
+  }
+  if(!v){ toast('Venda não encontrada para imprimir','err'); return; }
+  _imprimirTexto(_layoutCancelamento(v),'dav');
+}
+
+function _imprimirComprovanteMovimento(tipo,valor,descricao,res){
+  if((configAtual.print_sangria_suprimento||'0')!=='1') return;
+  res=res||{};
+  _imprimirTexto(_layoutMovimentoCaixa({tipo:tipo,valor:valor,descricao:descricao,numero:res.movimento_id,caixa_id:res.caixa_id}),'dav');
 }
 
 function imprimirDAV(){
@@ -7809,6 +8138,7 @@ async function confirmarCancelarVenda(){
     await loadHistorico();
     await loadProdutos();
     await loadContas && loadContas();
+    imprimirComprovanteCancelamento(id);
   } else toast(res&&res.erro?res.erro:'Erro ao cancelar','err');
 }
 
@@ -8686,6 +9016,7 @@ async function confirmarSangria(){
   if(res&&res.ok){
     document.getElementById('modal-sangria').classList.remove('open');
     toast(`🟠 Sangria de ${fmt(valor)} registrada`,'warn');
+    _imprimirComprovanteMovimento('sangria',valor,desc,res);
     await loadCaixa();
   } else toast(res&&res.erro?res.erro:'Erro','err');
 }
@@ -8705,6 +9036,7 @@ async function confirmarSuprimento(){
   if(res&&res.ok){
     document.getElementById('modal-suprimento').classList.remove('open');
     toast(`🔵 Suprimento de ${fmt(valor)} registrado`,'info');
+    _imprimirComprovanteMovimento('suprimento',valor,desc,res);
     await loadCaixa();
   } else toast(res&&res.erro?res.erro:'Erro','err');
 }
@@ -10235,6 +10567,8 @@ async function loadConfig(){
   var _pl=document.getElementById('cfg-print-largura');if(_pl){_pl.value=data.print_largura||'80'}
   var _cm=document.getElementById('cfg-cozinha-modelo');if(_cm){_cm.value=data.cozinha_modelo||'detalhado'}
   var _dc=document.getElementById('cfg-dav-cnpj');if(_dc){_dc.checked=(data.dav_mostrar_cnpj||'1')==='1'}
+  var _pcc=document.getElementById('cfg-print-cancelamento');if(_pcc){_pcc.checked=(data.print_cancelamento||'0')==='1'}
+  var _pss=document.getElementById('cfg-print-sangria-suprimento');if(_pss){_pss.checked=(data.print_sangria_suprimento||'0')==='1'}
   var _pbi=document.getElementById('cfg-print-balcao-ip');if(_pbi)_pbi.value=data.print_balcao_ip||'';
   var _pci=document.getElementById('cfg-print-cozinha-ip');if(_pci)_pci.value=data.print_cozinha_ip||'';
   var _pbn=document.getElementById('cfg-print-balcao-nome');if(_pbn)_pbn.value=data.print_balcao_nome||'';
@@ -10366,6 +10700,8 @@ async function salvarConfig(){
     print_largura:      (document.getElementById('cfg-print-largura')||{}).value||'80',
     cozinha_modelo:     (document.getElementById('cfg-cozinha-modelo')||{}).value||'detalhado',
     dav_mostrar_cnpj:   (document.getElementById('cfg-dav-cnpj')||{}).checked?'1':'0',
+    print_cancelamento:       (document.getElementById('cfg-print-cancelamento')||{}).checked?'1':'0',
+    print_sangria_suprimento: (document.getElementById('cfg-print-sangria-suprimento')||{}).checked?'1':'0',
     print_balcao_ip:    (document.getElementById('cfg-print-balcao-ip')||{}).value||'',
     print_cozinha_ip:   (document.getElementById('cfg-print-cozinha-ip')||{}).value||'',
     print_balcao_nome:  (document.getElementById('cfg-print-balcao-nome')||{}).value||'',

@@ -166,6 +166,7 @@ def init_database():
         # Entrega: cliente desistiu / não tinha ninguém em casa
         "ALTER TABLE vendas ADD COLUMN entrega_desistiu_em TIMESTAMP DEFAULT NULL",
         "ALTER TABLE vendas ADD COLUMN entrega_motivo_desistencia TEXT DEFAULT ''",
+        "ALTER TABLE vendas ADD COLUMN cancelada_por TEXT DEFAULT ''",
         # Venda descartada (carrinho perdido ao clicar Nova Venda) — recuperável
         "ALTER TABLE vendas ADD COLUMN descartada INTEGER DEFAULT 0",
         "ALTER TABLE vendas ADD COLUMN descartada_em TIMESTAMP DEFAULT NULL",
@@ -949,8 +950,8 @@ def api_cancelar_venda(data):
     if venda.get('descartada'): conn.close(); return {"ok":False,"erro":"Venda descartada não pode ser cancelada — ela nunca foi finalizada. Recupere-a no Histórico se precisar agir sobre ela."}
     agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     # Marca venda como cancelada
-    c.execute("UPDATE vendas SET cancelada=1, motivo_cancelamento=?, cancelada_em=? WHERE id=?",
-              (motivo, agora, venda_id))
+    c.execute("UPDATE vendas SET cancelada=1, motivo_cancelamento=?, cancelada_em=?, cancelada_por=? WHERE id=?",
+              (motivo, agora, unome, venda_id))
     # Estorna o lançamento financeiro (se não crediário)
     if venda['tipo_pagamento'] != 'crediario':
         # Mantém a entrada original e lança a saída de estorno: o rastro fica no
@@ -2678,9 +2679,199 @@ def api_atualizar_status_entrega(data):
     return {"ok":True}
 
 
-def api_listar_vendas():
+# ── EXPORTAÇÃO DO HISTÓRICO PARA EXCEL (.xlsx, sem dependências externas) ─────────
+_XML_INVALIDO = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f]')
+
+def _xlsx_col(n):
+    """0 -> A, 25 -> Z, 26 -> AA"""
+    r = ''; n += 1
+    while n:
+        n, resto = divmod(n - 1, 26)
+        r = chr(65 + resto) + r
+    return r
+
+def _xlsx_celula(ref, val, estilo=0):
+    from xml.sax.saxutils import escape as _xesc
+    if val is None or val == '':
+        return f'<c r="{ref}" s="{estilo}"/>' if estilo else ''
+    if isinstance(val, bool):
+        val = int(val)
+    if isinstance(val, (int, float)):
+        if val != val or val in (float('inf'), float('-inf')):
+            val = 0
+        return f'<c r="{ref}" s="{estilo}"><v>{val!r}</v></c>'
+    txt = _xesc(_XML_INVALIDO.sub('', str(val)))
+    return f'<c r="{ref}" s="{estilo}" t="inlineStr"><is><t xml:space="preserve">{txt}</t></is></c>'
+
+# estilos: 0 normal | 1 cabeçalho | 2 moeda | 3 data/hora | 4 data | 5 inteiro | 6 moeda negrito | 7 texto negrito
+_XLSX_ESTILOS = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    '<numFmts count="3">'
+    '<numFmt numFmtId="164" formatCode="&quot;R$&quot;\\ #,##0.00"/>'
+    '<numFmt numFmtId="165" formatCode="dd/mm/yyyy\\ hh:mm"/>'
+    '<numFmt numFmtId="166" formatCode="dd/mm/yyyy"/></numFmts>'
+    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>'
+    '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+    '<fills count="3"><fill><patternFill patternType="none"/></fill>'
+    '<fill><patternFill patternType="gray125"/></fill>'
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFE5E7EB"/><bgColor indexed="64"/></patternFill></fill></fills>'
+    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    '<cellXfs count="8">'
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
+    '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+    '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+    '<xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+    '<xf numFmtId="1" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+    '<xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/>'
+    '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+    '</cellXfs>'
+    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
+
+def _xlsx_bytes(abas):
+    """abas: lista de dicts {nome, linhas, larguras, filtro}.
+    Cada célula da linha é um valor simples ou uma tupla (valor, estilo)."""
+    import zipfile, io
+    from xml.sax.saxutils import escape as _xesc
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        ct = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+              '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+              '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+              '<Default Extension="xml" ContentType="application/xml"/>'
+              '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+              '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>']
+        wb_sheets, wb_rels = [], []
+        for n, aba in enumerate(abas, 1):
+            ct.append(f'<Override PartName="/xl/worksheets/sheet{n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>')
+            wb_sheets.append(f'<sheet name="{_xesc(aba["nome"])}" sheetId="{n}" r:id="rId{n}"/>')
+            wb_rels.append(f'<Relationship Id="rId{n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{n}.xml"/>')
+            linhas_xml = []
+            ncols = 1
+            for r, linha in enumerate(aba['linhas'], 1):
+                cel = []
+                for cidx, c in enumerate(linha):
+                    val, est = (c if isinstance(c, tuple) else (c, 0))
+                    cel.append(_xlsx_celula(f'{_xlsx_col(cidx)}{r}', val, est))
+                ncols = max(ncols, len(linha))
+                linhas_xml.append(f'<row r="{r}">{"".join(cel)}</row>')
+            cols = ''.join(f'<col min="{i}" max="{i}" width="{w}" customWidth="1"/>'
+                           for i, w in enumerate(aba.get('larguras', []), 1))
+            filtro = (f'<autoFilter ref="A1:{_xlsx_col(ncols - 1)}{len(aba["linhas"])}"/>'
+                      if aba.get('filtro') and len(aba['linhas']) > 1 else '')
+            z.writestr(f'xl/worksheets/sheet{n}.xml',
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+                '<sheetFormatPr defaultRowHeight="15"/>'
+                + (f'<cols>{cols}</cols>' if cols else '')
+                + f'<sheetData>{"".join(linhas_xml)}</sheetData>{filtro}</worksheet>')
+        ct.append('</Types>')
+        z.writestr('[Content_Types].xml', ''.join(ct))
+        z.writestr('_rels/.rels',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
+        z.writestr('xl/workbook.xml',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            f'<sheets>{"".join(wb_sheets)}</sheets></workbook>')
+        z.writestr('xl/_rels/workbook.xml.rels',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            + ''.join(wb_rels)
+            + f'<Relationship Id="rId{len(abas) + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            '</Relationships>')
+        z.writestr('xl/styles.xml', _XLSX_ESTILOS)
+    return buf.getvalue()
+
+def api_exportar_vendas_xlsx(params=None):
+    """Gera o Excel do histórico no período (?de=&ate=). Retorna (nome_arquivo, bytes)."""
+    params = params or {}
+    vendas = api_listar_vendas(params)
+    de  = (params.get('de')  or '').strip()
+    ate = (params.get('ate') or '').strip()
+    ok = lambda x: bool(re.match(r'^\d{4}-\d{2}-\d{2}$', x))
+    nome = f"historico_vendas_{de}_a_{ate}.xlsx" if ok(de) and ok(ate) else "historico_vendas.xlsx"
+
+    def _dt(txt):
+        t = str(txt or '').replace('T', ' ')[:19]
+        for f in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d'):
+            try: return datetime.strptime(t, f)
+            except ValueError: pass
+        return None
+    def _serial(d):
+        return (d - datetime(1899, 12, 30)).total_seconds() / 86400 if d else ''
+    dias_sem = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+    pag = {'dinheiro': 'Dinheiro', 'pix': 'PIX', 'cartao_credito': 'Cartão Crédito', 'cartao_debito': 'Cartão Débito',
+           'credito': 'Cartão Crédito', 'debito': 'Cartão Débito', 'crediario': 'Crediário', 'misto': 'Misto'}
+    def _qtd(q):
+        try:
+            q = float(q); return str(int(q)) if q == int(q) else str(q).replace('.', ',')
+        except Exception: return str(q)
+
+    vendas = sorted(vendas, key=lambda v: (str(v.get('data_venda') or '').replace('T', ' '), v.get('id') or 0))
+    por_dia, linhas_v = {}, []
+    for v in vendas:
+        d = _dt(v.get('data_venda'))
+        k = d.strftime('%Y-%m-%d') if d else 'sem-data'
+        status = 'Descartada' if v.get('descartada') else ('Cancelada' if v.get('cancelada') else 'Ativa')
+        g = por_dia.setdefault(k, {'qtd': 0, 'total': 0.0, 'canc': 0, 'desc': 0,
+                                   'data': d.replace(hour=0, minute=0, second=0, microsecond=0) if d else None})
+        total = float(v.get('total') or 0)
+        if status == 'Ativa': g['qtd'] += 1; g['total'] += total
+        elif status == 'Cancelada': g['canc'] += 1
+        else: g['desc'] += 1
+        if v.get('entrega'): atend = 'Entrega'
+        elif (v.get('tipo_atendimento') or '') == 'mesa': atend = f"Mesa {v.get('mesa') or ''}".strip()
+        else: atend = 'Balcão'
+        cliente = v.get('cliente') or v.get('nome_cliente_balcao') or v.get('nome_cliente_mesa') or v.get('entrega_nome') or ''
+        itens = ', '.join(f"{i.get('nome', '')} x{_qtd(i.get('quantidade'))}" for i in (v.get('itens') or []))
+        linhas_v.append([
+            (v.get('id'), 5), (_serial(d), 3), dias_sem[d.weekday()] if d else '', cliente, atend,
+            pag.get(str(v.get('tipo_pagamento') or '').lower(), str(v.get('tipo_pagamento') or '').title()),
+            itens, (float(v.get('desconto') or 0), 2), (float(v.get('entrega_taxa') or 0), 2), (total, 2), status,
+            v.get('motivo_cancelamento') or '', v.get('cancelada_por') or '', v.get('usuario_nome') or ''])
+
+    cab_v = ['Nº', 'Data/Hora', 'Dia', 'Cliente', 'Atendimento', 'Pagamento', 'Itens', 'Desconto', 'Taxa entrega',
+             'Total', 'Status', 'Motivo do cancelamento', 'Cancelada por', 'Vendedor']
+    linhas_r = [['Data', 'Dia da semana', 'Vendas', 'Total', 'Ticket médio', 'Canceladas', 'Descartadas']]
+    t_q = t_v = t_c = t_d = 0
+    for k in sorted(por_dia):
+        g = por_dia[k]
+        linhas_r.append([(_serial(g['data']), 4), dias_sem[g['data'].weekday()] if g['data'] else '', (g['qtd'], 5),
+                         (g['total'], 2), ((g['total'] / g['qtd']) if g['qtd'] else 0, 2), (g['canc'], 5), (g['desc'], 5)])
+        t_q += g['qtd']; t_v += g['total']; t_c += g['canc']; t_d += g['desc']
+    linhas_r.append([('TOTAL', 7), '', (t_q, 5), (t_v, 6), ((t_v / t_q) if t_q else 0, 6), (t_c, 5), (t_d, 5)])
+    cab_style = lambda cab: [(h, 1) for h in cab]
+    linhas_r[0] = cab_style(linhas_r[0])
+    abas = [
+        {'nome': 'Resumo por dia', 'linhas': linhas_r, 'larguras': [14, 16, 10, 16, 16, 12, 13], 'filtro': False},
+        {'nome': 'Vendas', 'linhas': [cab_style(cab_v)] + linhas_v,
+         'larguras': [8, 17, 10, 24, 14, 16, 50, 12, 13, 14, 12, 30, 16, 16], 'filtro': True},
+    ]
+    return nome, _xlsx_bytes(abas)
+
+def api_listar_vendas(params=None):
+    """Lista vendas. Com ?de=AAAA-MM-DD&ate=AAAA-MM-DD filtra pelo dia da venda
+    (inclusive nas duas pontas); sem filtro devolve as 60 mais recentes."""
+    import re as _rev
+    params = params or {}
+    de  = (params.get('de')  or '').strip()
+    ate = (params.get('ate') or '').strip()
+    ok_de  = bool(_rev.match(r'^\d{4}-\d{2}-\d{2}$', de))
+    ok_ate = bool(_rev.match(r'^\d{4}-\d{2}-\d{2}$', ate))
     conn = get_connection(); c = conn.cursor()
-    c.execute("SELECT * FROM vendas ORDER BY id DESC LIMIT 60")
+    if ok_de or ok_ate:
+        q = "SELECT * FROM vendas WHERE 1=1"; args = []
+        if ok_de:  q += " AND date(data_venda)>=?"; args.append(de)
+        if ok_ate: q += " AND date(data_venda)<=?"; args.append(ate)
+        q += " ORDER BY id DESC LIMIT 3000"
+        c.execute(q, args)
+    else:
+        c.execute("SELECT * FROM vendas ORDER BY id DESC LIMIT 60")
     vendas=[dict(v) for v in c.fetchall()]
     for v in vendas:
         if v.get('descartada'):
@@ -2823,6 +3014,8 @@ DEFAULTS_CONFIG = {
     'impressao_coz':  '1',
     'tema':           'default',
     'print_metodo':       'windows',
+    'print_cancelamento':       '0',   # 1 = imprime comprovante ao cancelar uma venda
+    'print_sangria_suprimento': '0',   # 1 = imprime comprovante de sangria e suprimento
     'print_largura':      '80',  # 80 ou 58 (mm) — largura do rolo da impressora térmica
     'dav_mostrar_cnpj':   '1',   # CNPJ no DAV é opcional
     'cozinha_modelo':     'detalhado',  # detalhado | destacado
@@ -3176,9 +3369,10 @@ def api_sangria_caixa(data):
     uid=data.get('_uid'); unome=data.get('_unome','Sistema')
     c.execute("INSERT INTO movimentos_caixa (caixa_id,tipo,descricao,valor) VALUES (?,?,?,?)",
               (row['id'], 'sangria', desc, valor))
+    mov_id = c.lastrowid
     c.execute("UPDATE caixa SET sangria_avisos=0 WHERE id=?", (row['id'],))
     _log(c, uid, unome, 'SANGRIA', 'Caixa', f"Sangria {fmt_val(valor)} — {desc}")
-    conn.commit(); conn.close(); return {"ok": True}
+    conn.commit(); conn.close(); return {"ok": True, "movimento_id": mov_id, "caixa_id": row['id']}
 
 def _incrementar_sangria_aviso():
     conn = get_connection(); c = conn.cursor()
@@ -3201,8 +3395,9 @@ def api_suprimento_caixa(data):
     uid=data.get('_uid'); unome=data.get('_unome','Sistema')
     c.execute("INSERT INTO movimentos_caixa (caixa_id,tipo,descricao,valor) VALUES (?,?,?,?)",
               (row['id'], 'suprimento', desc, valor))
+    mov_id = c.lastrowid
     _log(c, uid, unome, 'SUPRIMENTO', 'Caixa', f"Suprimento {fmt_val(valor)} — {desc}")
-    conn.commit(); conn.close(); return {"ok": True}
+    conn.commit(); conn.close(); return {"ok": True, "movimento_id": mov_id, "caixa_id": row['id']}
 
 def api_caixas_abertos():
     """Lista todos os caixas abertos — usado pelo admin para gerenciar."""""
@@ -3474,6 +3669,16 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             c['raw'] = raw_bytes
             c['gzip'] = gz.compress(raw_bytes)
             c['mtime'] = mtime
+        # ETag + no-cache: o navegador SEMPRE pergunta ao servidor se a página mudou
+        # (resposta 304 = rápido, sem baixar de novo). Antes era max-age=3600, e depois
+        # de uma atualização o navegador seguia mostrando a tela antiga por até 1 hora.
+        etag = '"%s-%s"' % (int(mtime * 1000), len(c['raw']))
+        if self.headers.get('If-None-Match') == etag:
+            self.send_response(304)
+            self.send_header('ETag', etag)
+            self.send_header('Cache-Control', 'no-cache')
+            self.end_headers()
+            return
         accept = self.headers.get('Accept-Encoding', '')
         if 'gzip' in accept:
             body = c['gzip']
@@ -3484,7 +3689,9 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', len(body))
-        self.send_header('Cache-Control', 'public, max-age=3600')
+        self.send_header('Cache-Control', 'no-cache')
+        self.send_header('ETag', etag)
+        self.send_header('Vary', 'Accept-Encoding')
         self.end_headers()
         self.wfile.write(body)
 
@@ -3542,6 +3749,19 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
                 self.send_header('Access-Control-Allow-Origin','*')
                 self.end_headers()
                 self.wfile.write(mf.read_bytes())
+            return
+        if path == '/api/vendas/exportar':
+            try:
+                _nome_x, _corpo_x = api_exportar_vendas_xlsx(params)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                self.send_header('Content-Disposition', f'attachment; filename="{_nome_x}"')
+                self.send_header('Content-Length', str(len(_corpo_x)))
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                self.wfile.write(_corpo_x)
+            except Exception as _e_x:
+                self.send_json({"erro": f"Falha ao gerar o Excel: {_e_x}"}, 500)
             return
         if path in ('/icon-192.png', '/icon-512.png'):
             ico = Path(__file__).parent / path.lstrip('/')
@@ -3645,6 +3865,7 @@ class ManaFoodHandler(BaseHTTPRequestHandler):
             return
         # Rotas com params
         param_routes = {
+            '/api/vendas':       api_listar_vendas,
             '/api/meta':         api_meta_diaria,
             '/api/cmv':          api_relatorio_cmv,
             '/api/mesa/historico': api_mesa_historico,
