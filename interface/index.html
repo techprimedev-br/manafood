@@ -2282,14 +2282,23 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
               <div id="comanda-tempo" style="font-size:12px;color:var(--text2);margin-top:3px"></div>
             </div>
             <div style="display:flex;gap:8px">
+              <button id="btn-desc-comanda" onclick="abrirDescontoComanda()" style="padding:6px 12px;border-radius:7px;border:1px solid #fbbf24;background:#fffbeb;color:#92400e;font-size:12px;font-weight:700;cursor:pointer">🏷️ Desconto</button>
               <button onclick="imprimirComanda()" style="padding:6px 12px;border-radius:7px;border:1px solid #6366f1;background:#eef2ff;color:#6366f1;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimir</button>
               <button id="btn-fechar-comanda" style="padding:6px 12px;border-radius:7px;border:none;background:#dc2626;color:#fff;font-size:12px;font-weight:700;cursor:pointer">✅ Fechar mesa</button>
             </div>
           </div>
           <div id="comanda-lista"></div>
-          <div style="border-top:2px solid var(--border);margin-top:12px;padding-top:10px;display:flex;justify-content:space-between;font-size:15px;font-weight:800">
-            <span>Total acumulado</span>
-            <span id="comanda-total" style="color:var(--accent)"></span>
+          <div style="border-top:2px solid var(--border);margin-top:12px;padding-top:10px">
+            <div id="comanda-sub-linha" style="display:none;justify-content:space-between;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px">
+              <span>Subtotal</span><span id="comanda-sub-val"></span>
+            </div>
+            <div id="comanda-desc-linha" style="display:none;justify-content:space-between;font-size:13px;font-weight:700;color:#92400e;margin-bottom:4px">
+              <span>🏷️ Desconto <a href="#" onclick="event.preventDefault();_limparDescontoComanda()" style="font-size:11px;color:#dc2626;font-weight:600;margin-left:4px">remover</a></span><span id="comanda-desc-val"></span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800">
+              <span>Total acumulado</span>
+              <span id="comanda-total" style="color:var(--accent)"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -2782,6 +2791,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
                 </label>
                 <label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;cursor:pointer">
                   <input type="checkbox" id="perm-contas"> 🧾 Contas
+                </label>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;cursor:pointer">
+                  <input type="checkbox" id="perm-comanda"> 🪑 Comanda
                 </label>
               </div>
             </div>
@@ -4545,10 +4557,21 @@ async function finalizarVenda(){
   let pagsMixFinal = null;
   if(usandoMix && pagsMix.length > 0){
     tipoPagFinal = 'misto';
-    pagsMixFinal = pagsMix.filter(p=>p.valor>0);
+    pagsMixFinal = pagsMix.filter(p=>p.valor>0).map(p=>{
+      const o = {tipo:p.tipo, valor:p.valor};
+      if(p.tipo==='dinheiro' && p.recebido>0) o.recebido = p.recebido;
+      return o;
+    });
+    const somaMix = pagsMixFinal.reduce((s,p)=>s+p.valor,0);
+    if(Math.abs(somaMix-total)>0.01){
+      toast('A soma das formas ('+fmt(somaMix)+') não bate com o total ('+fmt(total)+')','err');
+      btn.disabled=false;btn.textContent='Confirmar venda';return;
+    }
   }
   const obsGeral=(document.getElementById('obs-geral')||{}).value||'';
-  const valorRecebido=parseFloat((document.getElementById('troco-recebido')||{}).value)||0;
+  const valorRecebido = pagsMixFinal
+    ? pagsMixFinal.reduce((s,p)=>s+((p.tipo==='dinheiro'&&p.recebido)?p.recebido:0),0)
+    : (parseFloat((document.getElementById('troco-recebido')||{}).value)||0);
   const cartaoBandeira=(document.getElementById('cartao-bandeira')||{}).value||'';
   const cartaoNsu=(document.getElementById('cartao-nsu')||{}).value||'';
   if((tipoPagFinal==='cartao_credito'||tipoPagFinal==='cartao_debito')&&!cartaoBandeira){
@@ -6599,6 +6622,14 @@ function _layoutDAV(v){
   var receb=parseFloat(N.valor_recebido||0);
   if(N.tipo_pagamento==='dinheiro' && receb>0){
     L.push('Recebido: R$ '+_din(receb)+'  Troco: R$ '+_din(Math.max(0,receb-(v.total||0))));
+  }
+  if(N.tipo_pagamento==='misto' && N.pagamentos_mix){
+    N.pagamentos_mix.forEach(function(p){
+      var r=parseFloat(p.recebido||0);
+      if(p.tipo==='dinheiro' && r>0){
+        L.push('Din. recebido: R$ '+_din(r)+'  Troco: R$ '+_din(Math.max(0,r-(parseFloat(p.valor)||0))));
+      }
+    });
   }
   if(N.tipo_pagamento==='crediario' && N.vencimento){
     L.push('Vencimento: '+String(N.vencimento).split('-').reverse().join('/'));
@@ -9233,17 +9264,17 @@ function togglePagMix(){
   usandoMix = !usandoMix;
   const area = document.getElementById('pag-mix-area');
   const btn  = document.getElementById('btn-pag-mix');
-  const grid = document.querySelector('.pay-grid');
+  const trocoBox = document.getElementById('troco-box');
   if(area) area.style.display = usandoMix ? 'block' : 'none';
   if(btn)  btn.textContent = usandoMix ? '✕ Simples' : '+ Dividir';
+  pagsMix = [];
   if(usandoMix){
-    pagsMix = [];
-  window._descontoVenda=0; window._gorjeta=0; window._cupomDesconto=0; window._cupomCodigo='';
+    // O troco do misto é calculado dentro de cada linha em dinheiro
+    if(trocoBox) trocoBox.style.display = 'none';
     adicionarPagMix();
     adicionarPagMix();
-    renderPagMix();
   } else {
-    pagsMix = [];
+    selectPay(tipoPag); // volta ao modo simples (reexibe troco/cartão conforme a forma)
   }
 }
 
@@ -9255,15 +9286,20 @@ const _PAGS = [
 ];
 
 function adicionarPagMix(){
-  const total = parseFloat((function(){var _e=document.getElementById('total-val');return _e?_e.textContent.replace(/R\$/g,'').replace(/\s/g,'').replace(/\./g,'').replace(',','.'):'0';})()) || 0;
+  const total = _totalMixEl();
   const jaAlocado = pagsMix.reduce((s,p)=>s+(p.valor||0), 0);
   const restante  = Math.max(0, parseFloat((total - jaAlocado).toFixed(2)));
-  pagsMix.push({ tipo:'dinheiro', valor: restante });
+  // sugere a primeira forma ainda não usada (evita duas linhas de dinheiro por padrão)
+  const usadas = pagsMix.map(p=>p.tipo);
+  const livre  = _PAGS.find(op=>!usadas.includes(op.v));
+  pagsMix.push({ tipo: livre ? livre.v : 'dinheiro', valor: restante, recebido: 0 });
   renderPagMix();
 }
 
 function _totalMixEl(){
-  return parseFloat((function(){var _e=document.getElementById('total-val');return _e?_e.textContent.replace(/R\$/g,'').replace(/\s/g,'').replace(/\./g,'').replace(',','.'):'0';})()) || 0;
+  const _e = document.getElementById('total-val');
+  if(!_e) return 0;
+  return parseFloat(_e.textContent.replace(/R\$/g,'').replace(/\s/g,'').replace(/\./g,'').replace(',','.')) || 0;
 }
 function _atualizaResumoPagMix(){
   // Só atualiza o resumo sem recriar HTML (preserva foco nos inputs)
@@ -9272,44 +9308,77 @@ function _atualizaResumoPagMix(){
   const diff = parseFloat((totalAlocado-totalEl).toFixed(2));
   let resumo = document.getElementById('pag-mix-resumo');
   if(!resumo){
+    const lista = document.getElementById('pag-mix-lista');
+    if(!lista) return;
     resumo = document.createElement('div');
     resumo.id = 'pag-mix-resumo';
     resumo.style.cssText = 'font-size:11px;margin-top:6px;font-weight:700';
-    (function(){var _e=document.getElementById('pag-mix-lista');return _e?_e.appendChild:null;})()(resumo);
+    lista.insertAdjacentElement('afterend', resumo); // fora da lista: sobrevive ao re-render
   }
   resumo.style.color = Math.abs(diff)<0.01?'#16a34a':'#dc2626';
   resumo.textContent = Math.abs(diff)<0.01 ? '✅ Valor distribuído corretamente' : (diff>0?'⚠️ Excedendo ':'⚠️ Faltando ')+fmt(Math.abs(diff));
 }
+// Troco da parte em dinheiro de uma linha do misto
+function _atualizaTrocoMix(i){
+  const p  = pagsMix[i];
+  const el = document.querySelector('[data-mix-troco-res="'+i+'"]');
+  if(!p || !el) return;
+  const rec = p.recebido||0;
+  if(rec<=0){ el.textContent=''; return; }
+  if(rec+0.0001 < p.valor){ el.innerHTML='<span style="color:#dc2626">Falta: '+fmt(p.valor-rec)+'</span>'; return; }
+  el.innerHTML='<span style="color:#16a34a">Troco: '+fmt(rec-p.valor)+'</span>';
+}
 function renderPagMix(){
   const lista = document.getElementById('pag-mix-lista');
   if(!lista) return;
-  // Recria HTML completo apenas quando estrutura muda (add/remove linha)
+  // Recria HTML completo apenas quando a estrutura muda (add/remove linha ou troca de forma)
   lista.innerHTML = pagsMix.map((p,i)=>
-    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:2px">' +
+    '<div style="margin-bottom:2px">' +
+    '<div style="display:flex;gap:6px;align-items:center">' +
     '<select data-mix-tipo="'+i+'" style="flex:1;padding:6px 8px;border:1px solid var(--border2);border-radius:7px;font-size:12px">' +
     _PAGS.map(op=>'<option value="'+op.v+'"'+(op.v===p.tipo?' selected':'')+'>'+op.l+'</option>').join('') +
     '</select>' +
     '<input type="number" data-mix-val="'+i+'" value="'+p.valor.toFixed(2)+'" min="0" step="0.01" ' +
     'style="width:90px;padding:6px 8px;border:1px solid var(--border2);border-radius:7px;font-size:12px;text-align:right">' +
     (pagsMix.length>2?'<button data-mix-del="'+i+'" style="width:26px;height:26px;border-radius:50%;border:1px solid #fca5a5;background:#fef2f2;color:var(--red);cursor:pointer;font-size:14px;flex-shrink:0">✕</button>':'<span style="width:26px"></span>') +
+    '</div>' +
+    (p.tipo==='dinheiro' ?
+      '<div style="display:flex;gap:6px;align-items:center;margin-top:4px;padding:5px 8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px">' +
+      '<span style="font-size:11px;font-weight:700;color:#166534;white-space:nowrap">💵 Recebido R$</span>' +
+      '<input type="number" data-mix-rec="'+i+'" value="'+(p.recebido>0?p.recebido.toFixed(2):'')+'" min="0" step="0.01" placeholder="0,00" ' +
+      'style="width:80px;padding:4px 8px;border:1px solid #bbf7d0;border-radius:6px;font-size:12px;font-weight:700;text-align:right">' +
+      '<span data-mix-troco-res="'+i+'" style="flex:1;text-align:right;font-size:12px;font-weight:800"></span>' +
+      '</div>' : '') +
     '</div>'
   ).join('');
-  // Event listeners — NÃO chama renderPagMix no oninput, só atualiza resumo
   lista.querySelectorAll('[data-mix-tipo]').forEach(sel=>{
     sel.onchange = e=>{
-      pagsMix[parseInt(sel.dataset.mixTipo)].tipo = e.target.value;
+      const i = parseInt(sel.dataset.mixTipo);
+      pagsMix[i].tipo = e.target.value;
+      if(pagsMix[i].tipo!=='dinheiro') pagsMix[i].recebido = 0;
+      renderPagMix(); // mostra/esconde o campo de troco
     };
   });
   lista.querySelectorAll('[data-mix-val]').forEach(inp=>{
     inp.oninput = e=>{
-      pagsMix[parseInt(inp.dataset.mixVal)].valor = parseFloat(e.target.value)||0;
+      const i = parseInt(inp.dataset.mixVal);
+      pagsMix[i].valor = parseFloat(e.target.value)||0;
+      _atualizaTrocoMix(i);
       _atualizaResumoPagMix(); // só atualiza resumo, não recria HTML
     };
     inp.onblur = ()=>_atualizaResumoPagMix();
   });
+  lista.querySelectorAll('[data-mix-rec]').forEach(inp=>{
+    inp.oninput = e=>{
+      const i = parseInt(inp.dataset.mixRec);
+      pagsMix[i].recebido = parseFloat(e.target.value)||0;
+      _atualizaTrocoMix(i);
+    };
+  });
   lista.querySelectorAll('[data-mix-del]').forEach(btn=>{
     btn.onclick = ()=>{ pagsMix.splice(parseInt(btn.dataset.mixDel),1); renderPagMix(); };
   });
+  pagsMix.forEach((p,i)=>_atualizaTrocoMix(i));
   _atualizaResumoPagMix();
 }
 // ── NOVA VENDA ────────────────────────────────────────────────────────────────
@@ -9453,10 +9522,10 @@ function _restaurarCarrinhoRecuperado(res){
 
 // ── PERFIL PERSONALIZADO ──────────────────────────────────────────────────────
 const PERMS_PADRAO = {
-  admin:    {pdv:1,estoque:1,clientes:1,caixa:1,historico:1,entregas:1,financeiro:1,relatorio:1,'editar-venda':1,'cancelar-venda':1,'editar-produto':1,contas:1},
-  gerente:  {pdv:1,estoque:1,clientes:1,caixa:1,historico:1,entregas:1,financeiro:1,relatorio:1,'editar-venda':1,'cancelar-venda':1,'editar-produto':1,contas:1},
-  operador: {pdv:1,estoque:0,clientes:1,caixa:0,historico:1,entregas:0,financeiro:0,relatorio:0,'editar-venda':0,'cancelar-venda':0,'editar-produto':0,contas:0},
-  caixa:    {pdv:1,estoque:0,clientes:0,caixa:1,historico:1,entregas:1,financeiro:0,relatorio:0,'editar-venda':0,'cancelar-venda':0,'editar-produto':0,contas:0},
+  admin:    {pdv:1,estoque:1,clientes:1,caixa:1,historico:1,entregas:1,financeiro:1,relatorio:1,'editar-venda':1,'cancelar-venda':1,'editar-produto':1,contas:1,comanda:1},
+  gerente:  {pdv:1,estoque:1,clientes:1,caixa:1,historico:1,entregas:1,financeiro:1,relatorio:1,'editar-venda':1,'cancelar-venda':1,'editar-produto':1,contas:1,comanda:1},
+  operador: {pdv:1,estoque:0,clientes:1,caixa:0,historico:1,entregas:0,financeiro:0,relatorio:0,'editar-venda':0,'cancelar-venda':0,'editar-produto':0,contas:0,comanda:1},
+  caixa:    {pdv:1,estoque:0,clientes:0,caixa:1,historico:1,entregas:1,financeiro:0,relatorio:0,'editar-venda':0,'cancelar-venda':0,'editar-produto':0,contas:0,comanda:1},
 };
 
 function onPerfilChange(){
@@ -9473,14 +9542,14 @@ function onPerfilChange(){
 }
 
 function _setPermsCheckboxes(perms){
-  Object.keys(perms).forEach(k=>{
-    const el = document.getElementById('perm-'+k);
-    if(el) el.checked = !!perms[k];
+  perms = perms || {};
+  document.querySelectorAll('#usr-perms-wrap input[type=checkbox][id^="perm-"]').forEach(el=>{
+    el.checked = !!perms[el.id.slice(5)];
   });
 }
 
 function _getPermsFromCheckboxes(){
-  const keys = ['pdv','estoque','clientes','caixa','historico','entregas','financeiro','relatorio','editar-venda','cancelar-venda','editar-produto','contas'];
+  const keys = ['pdv','estoque','clientes','caixa','historico','entregas','financeiro','relatorio','editar-venda','cancelar-venda','editar-produto','contas','comanda'];
   const obj = {};
   keys.forEach(k=>{ const el=document.getElementById('perm-'+k); obj[k]=el?el.checked?1:0:0; });
   return obj;
@@ -9501,6 +9570,7 @@ function _aplicarPermsPersonalizadas(perms){
     historico:  '[onclick*="historico"]',
     clientes:   '[onclick*="clientes"]',
     estoque:    '[onclick*="estoque"]',
+    comanda:    '[onclick*="comanda"]',
   };
   Object.entries(navMap).forEach(([k,sel])=>{
     const btn = document.querySelector('.nav-btn'+sel);
@@ -9605,7 +9675,7 @@ function _modalDesconto({titulo, subtotal, callback}){
     '</div></div>';
   m.onclick = function(e){ if(e.target===m) m.remove(); };
   document.body.appendChild(m);
-  setTimeout(()=>(function(){var _e=document.getElementById('desc-valor');return _e?_e.focus:null;})()(), 100);
+  setTimeout(()=>{var _e=document.getElementById('desc-valor');if(_e)_e.focus();}, 100);
 }
 
 function abrirGorjeta(){
@@ -9904,6 +9974,33 @@ function limparFormPromocao(){
 
 // ── COMANDA MESA ──────────────────────────────────────────────────────────────
 let _comandaAtual = null;
+let _comandaDesconto = 0;     // desconto (R$) aplicado na mesa aberta na tela
+let _comandaTotalBruto = 0;   // soma dos pedidos da mesa, sem desconto
+
+function _totalComandaLiquido(){ return Math.max(0, _comandaTotalBruto - _comandaDesconto); }
+function _renderTotalComanda(){
+  const liq = _totalComandaLiquido();
+  const tot = document.getElementById('comanda-total'); if(tot) tot.textContent = fmt(liq);
+  const temDesc = _comandaDesconto>0;
+  const ls = document.getElementById('comanda-sub-linha');  if(ls) ls.style.display = temDesc?'flex':'none';
+  const ld = document.getElementById('comanda-desc-linha'); if(ld) ld.style.display = temDesc?'flex':'none';
+  const sv = document.getElementById('comanda-sub-val');    if(sv) sv.textContent = fmt(_comandaTotalBruto);
+  const dv = document.getElementById('comanda-desc-val');   if(dv) dv.textContent = '-'+fmt(_comandaDesconto);
+}
+function abrirDescontoComanda(){
+  if(!_comandaAtual){ toast('Nenhuma comanda aberta','err'); return; }
+  if(_comandaTotalBruto<=0){ toast('A mesa não tem valor para desconto','err'); return; }
+  _modalDesconto({
+    titulo: '🏷️ Desconto na comanda — '+_comandaAtual,
+    subtotal: _comandaTotalBruto,
+    callback: (desc)=>{
+      _comandaDesconto = Math.min(Math.max(0,desc), _comandaTotalBruto);
+      _renderTotalComanda();
+      toast(_comandaDesconto>0 ? 'Desconto de '+fmt(_comandaDesconto)+' aplicado na comanda' : 'Desconto removido');
+    }
+  });
+}
+function _limparDescontoComanda(){ _comandaDesconto = 0; _renderTotalComanda(); toast('Desconto removido'); }
 let _cronometroInterval = null;
 
 async function loadComandasAtivas(){
@@ -9951,6 +10048,7 @@ async function loadComandasAtivas(){
 
 
 async function verComanda(mesa){
+  if(_comandaAtual !== mesa) _comandaDesconto = 0; // desconto é por mesa
   _comandaAtual = mesa;
   const d = await api('/mesa/historico?mesa='+encodeURIComponent(mesa));
   if(!d) return;
@@ -9958,7 +10056,9 @@ async function verComanda(mesa){
   if(!res) return;
   res.style.display = 'block';
   document.getElementById('comanda-titulo').textContent = '🪑 '+mesa+((d.vendas[0] ? d.vendas[0].nome_cliente_mesa : '')?' — '+d.vendas[0].nome_cliente_mesa:'');
-  document.getElementById('comanda-total').textContent  = fmt(d.total_mesa);
+  _comandaTotalBruto = d.total_mesa || 0;
+  _comandaDesconto   = Math.min(_comandaDesconto, _comandaTotalBruto);
+  _renderTotalComanda();
   // Cronômetro
   if(_cronometroInterval) clearInterval(_cronometroInterval);
   const tempoEl = document.getElementById('comanda-tempo');
@@ -10009,7 +10109,7 @@ async function verComanda(mesa){
   // Botão fechar mesa
   const btnFechar = document.getElementById('btn-fechar-comanda');
   if(btnFechar){
-    btnFechar.onclick = ()=>fecharComanda(mesa, d.total_mesa);
+    btnFechar.onclick = ()=>fecharComanda(mesa, _totalComandaLiquido());
   }
   // Scroll para o detalhe
   res.scrollIntoView({behavior:'smooth', block:'start'});
@@ -10038,7 +10138,9 @@ async function fecharComanda(mesa, total){
   m.innerHTML =
     '<div onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;padding:24px;width:92%;max-width:400px;box-shadow:0 8px 40px rgba(0,0,0,.25)">' +
     '<div style="font-size:17px;font-weight:800;color:#1e293b;margin-bottom:4px">✅ Fechar Mesa — '+mesa+'</div>' +
-    '<div style="font-size:13px;color:#64748b;margin-bottom:18px">Total acumulado: <strong style="color:#e67e22;font-size:16px">'+fmt(total)+'</strong></div>' +
+    '<div style="font-size:13px;color:#64748b;margin-bottom:18px">'+
+      (_comandaDesconto>0 ? 'Subtotal: '+fmt(total+_comandaDesconto)+' &nbsp;·&nbsp; <span style="color:#92400e;font-weight:700">Desconto: -'+fmt(_comandaDesconto)+'</span><br>' : '')+
+      'Total a pagar: <strong style="color:#e67e22;font-size:16px">'+fmt(total)+'</strong></div>' +
     '<div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Forma de pagamento</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">' +
     pagOpts.map(p=>
@@ -10092,8 +10194,39 @@ function _selecionarPagMesa(btn){
           'oninput="_atualizarRestoMix()">'+
           '</div>').join('')+
         '<div id="fc-mix-resto" style="font-size:12px;color:#64748b;text-align:right;margin-top:4px">Restante: '+fmt(total)+'</div>';
+      obs.innerHTML +=
+        '<div style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+        '<label style="font-size:12px;font-weight:700;color:#166534;white-space:nowrap">💵 Dinheiro recebido R$</label>'+
+        '<input type="number" id="fc-recebido" min="0" step="0.01" placeholder="0,00" oninput="_calcTrocoMesa()" '+
+        'style="flex:1;padding:6px 8px;border:1px solid #bbf7d0;border-radius:6px;font-size:13px;font-weight:700;text-align:right"></div>'+
+        '<div id="fc-troco-res" style="font-size:13px;font-weight:800;text-align:right;margin-top:4px"></div></div>';
+    } else if(tipo==='dinheiro'){
+      obs.innerHTML =
+        '<div style="padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+        '<label style="font-size:12px;font-weight:700;color:#166534;white-space:nowrap">💵 Recebido R$</label>'+
+        '<input type="number" id="fc-recebido" min="0" step="0.01" placeholder="0,00" oninput="_calcTrocoMesa()" '+
+        'style="flex:1;padding:6px 8px;border:1px solid #bbf7d0;border-radius:6px;font-size:13px;font-weight:700;text-align:right"></div>'+
+        '<div id="fc-troco-res" style="font-size:13px;font-weight:800;text-align:right;margin-top:4px"></div></div>';
     } else obs.innerHTML='';
   }
+}
+
+// Troco no fechamento da mesa (dinheiro simples ou a parte em dinheiro do misto)
+function _calcTrocoMesa(){
+  const res = document.getElementById('fc-troco-res'); if(!res) return;
+  const rec = parseFloat((document.getElementById('fc-recebido')||{}).value)||0;
+  const tipo = (document.getElementById('fc-pag-tipo')||{}).value;
+  let devido = parseFloat((document.getElementById('fc-total-mesa')||{}).value)||0;
+  if(tipo==='misto'){
+    const inp = document.querySelector('[data-mix-pag="dinheiro"]');
+    devido = parseFloat(inp && inp.value)||0;
+    if(devido<=0){ res.innerHTML = rec>0 ? '<span style="color:#64748b">Informe o valor em dinheiro acima</span>' : ''; return; }
+  }
+  if(rec<=0){ res.textContent=''; return; }
+  if(rec+0.0001<devido){ res.innerHTML='<span style="color:#dc2626">Falta: '+fmt(devido-rec)+'</span>'; return; }
+  res.innerHTML='<span style="color:#16a34a">Troco: '+fmt(rec-devido)+'</span>';
 }
 
 function _atualizarRestoMix(){
@@ -10102,7 +10235,8 @@ function _atualizarRestoMix(){
   document.querySelectorAll('[data-mix-pag]').forEach(i=>{soma+=parseFloat(i.value)||0});
   const resto=document.getElementById('fc-mix-resto');
   const diff=total-soma;
-  if(resto) resto.innerHTML=diff>0.01?'Restante: <strong style="color:#dc2626">'+fmt(diff)+'</strong>':'<strong style="color:#16a34a">✓ Completo</strong>';
+  if(resto) resto.innerHTML=diff>0.01?'Restante: <strong style="color:#dc2626">'+fmt(diff)+'</strong>':(diff<-0.01?'<strong style="color:#dc2626">Excedendo '+fmt(-diff)+'</strong>':'<strong style="color:#16a34a">✓ Completo</strong>');
+  _calcTrocoMesa();
 }
 
 async function _confirmarFechamentoMesa(){
@@ -10121,7 +10255,7 @@ async function _confirmarFechamentoMesa(){
   }
   var _old2=document.getElementById('modal-fechar-comanda');if(_old2)_old2.remove();
   // Monta payload
-  const payload=Object.assign({mesa, tipo_pagamento:pagTipo}, _u());
+  const payload=Object.assign({mesa, tipo_pagamento:pagTipo, desconto:_comandaDesconto}, _u());
   if(pagTipo==='misto'){
     const mix=[];
     document.querySelectorAll('[data-mix-pag]').forEach(i=>{
@@ -10134,7 +10268,7 @@ async function _confirmarFechamentoMesa(){
   if((res && res.ok)){
     toast('✅ Mesa '+mesa+' fechada! Pagamento: '+pagTipo);
     document.getElementById('comanda-resultado').style.display='none';
-    _comandaAtual=null;
+    _comandaAtual=null; _comandaDesconto=0; _comandaTotalBruto=0;
     if(_cronometroInterval){ clearInterval(_cronometroInterval); _cronometroInterval=null; }
     loadComandasAtivas();
   } else {
@@ -10152,6 +10286,9 @@ function imprimirComanda(){
   w.document.write('<html><head><title>Comanda</title><style>body{font-family:monospace;padding:20px}hr{border:1px dashed #000}</style></head><body>');
   w.document.write('<h2 style="text-align:center">'+titulo+'</h2><hr>');
   w.document.write(lista);
+  if(_comandaDesconto>0){
+    w.document.write('<hr><div style="text-align:right">Subtotal: '+fmt(_comandaTotalBruto)+'<br>Desconto: -'+fmt(_comandaDesconto)+'</div>');
+  }
   w.document.write('<hr><h3 style="text-align:right">Total: '+total+'</h3>');
   w.document.write('</body></html>');
   w.document.close();
@@ -10289,7 +10426,7 @@ function _aplicarPermissoes(perfil, permsCustom){
   _styleEl.textContent = nivel>=3 ? '.perm-gerente{display:inline-flex!important}' : '.perm-gerente{display:none!important}';
 
   // Abas extras de perfis fixos (as abas restritas são .nav-gerente e ficariam ocultas)
-  const _extraNav = { caixa:['entregas','rotas','caixa'] };
+  const _extraNav = { operador:['comanda'], caixa:['entregas','rotas','caixa','comanda'] };
   (_extraNav[perfil]||[]).forEach(id=>{
     const b = document.querySelector('.nav-btn[onclick*="\''+id+'\'"]');
     if(b) b.style.display = '';

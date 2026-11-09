@@ -2427,23 +2427,81 @@ def api_mesa_historico(params=None):
     print(f'[COMANDA] mesa={mesa!r} vendas={len(vendas)} params={params}')
     return {"mesa":mesa,"vendas":vendas,"total_mesa":total_mesa,"qtd_pedidos":len(vendas),"aberto_em":aberto_em}
 
+def _ratear_centavos(valor_c, bases):
+    """Divide valor_c (centavos) proporcionalmente a bases, sem perder centavo."""
+    tot = sum(bases)
+    if tot <= 0 or valor_c <= 0:
+        return [0] * len(bases)
+    parte = [valor_c * b // tot for b in bases]
+    resto = valor_c - sum(parte)
+    ordem = sorted(range(len(bases)), key=lambda i: (valor_c * bases[i]) % tot, reverse=True)
+    for i in ordem[:resto]:
+        parte[i] += 1
+    return parte
+
+def _distribuir_mix(partes, totais_c):
+    """Distribui as formas de pagamento (lista de [tipo, centavos]) entre as vendas,
+    em ordem, de modo que a soma de cada venda e a soma por forma batam exatamente."""
+    fila = [[t, c] for t, c in partes if c > 0]
+    saida = []
+    for tv in totais_c:
+        falta = tv; lista = []
+        while falta > 0 and fila:
+            t, c = fila[0]
+            usa = min(c, falta)
+            lista.append({'tipo': t, 'valor': round(usa / 100, 2)})
+            fila[0][1] -= usa; falta -= usa
+            if fila[0][1] <= 0: fila.pop(0)
+        saida.append(lista)
+    return saida
+
 def api_fechar_mesa(data):
-    """Fecha mesa: remove de mesas_ativas e cancela do grid (não cancela vendas)."""
+    """Fecha mesa: remove de mesas_ativas, aplica desconto (rateado entre os pedidos),
+    grava a forma de pagamento (inclusive o detalhe do misto) e fecha as vendas."""
     mesa = data.get("mesa","")
     if not mesa: return {"ok":False,"erro":"Mesa não informada"}
-    conn = get_connection(); c = conn.cursor()
     tipo_pag = data.get("tipo_pagamento","dinheiro") or "dinheiro"
+    try: desconto = max(0.0, float(data.get("desconto",0) or 0))
+    except Exception: desconto = 0.0
+    pags_mix = data.get("pagamentos_mix") or []
+    conn = get_connection(); c = conn.cursor()
     try:
-        # Remove da tabela de mesas ativas
-        c.execute("DELETE FROM mesas_ativas WHERE mesa=?", (mesa,))
-        # Atualiza pagamento e fecha todas as vendas da mesa
-        c.execute("""UPDATE vendas SET status_mesa='fechada', mesa_historico='fechada',
-                        tipo_pagamento=?
+        c.execute("""SELECT id,total FROM vendas
                      WHERE (mesa=? OR nome_cliente_mesa=?)
-                       AND cancelada=0
-                       AND descartada=0
-                       AND (status_mesa='aberta' OR status_mesa IS NULL OR status_mesa='')""",
-                  (tipo_pag, mesa, mesa))
+                       AND cancelada=0 AND descartada=0
+                       AND (status_mesa='aberta' OR status_mesa IS NULL OR status_mesa='')
+                     ORDER BY id""", (mesa, mesa))
+        vendas = [dict(r) for r in c.fetchall()]
+        totais = [int(round(float(v['total'] or 0) * 100)) for v in vendas]
+        total_c = sum(totais)
+        desc_c = int(round(desconto * 100))
+        if desc_c > total_c:
+            conn.close(); return {"ok":False,"erro":"Desconto maior que o total da mesa"}
+        descs = _ratear_centavos(desc_c, totais)
+        novos = [t - d for t, d in zip(totais, descs)]
+
+        mix_por_venda = [[] for _ in vendas]
+        if tipo_pag == 'misto':
+            partes = []
+            for p in pags_mix:
+                try: partes.append([p.get('tipo') or 'outro', int(round(float(p.get('valor') or 0) * 100))])
+                except Exception: pass
+            if not partes:
+                conn.close(); return {"ok":False,"erro":"Informe as formas do pagamento misto"}
+            if abs(sum(cv for _, cv in partes) - sum(novos)) > 1:
+                conn.close(); return {"ok":False,"erro":"A soma dos pagamentos não bate com o total da mesa"}
+            mix_por_venda = _distribuir_mix(partes, novos)
+
+        c.execute("DELETE FROM mesas_ativas WHERE mesa=?", (mesa,))
+        for i, v in enumerate(vendas):
+            mix_json = json.dumps(mix_por_venda[i], ensure_ascii=False) if tipo_pag == 'misto' else ''
+            c.execute("""UPDATE vendas SET status_mesa='fechada', mesa_historico='fechada',
+                            tipo_pagamento=?, pagamentos_mix=?, total=?,
+                            desconto=COALESCE(desconto,0)+?
+                         WHERE id=?""",
+                      (tipo_pag, mix_json, novos[i] / 100, descs[i] / 100, v['id']))
+        _log(c, data.get('_uid', 0), data.get('_unome', ''), 'FECHAR', f'Mesa {mesa}',
+             f"Mesa fechada ({tipo_pag})" + (f" com desconto de R$ {desc_c/100:.2f}" if desc_c else ""))
         conn.commit()
     except Exception as e:
         conn.close(); return {"ok":False,"erro":str(e)}
